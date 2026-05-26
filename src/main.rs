@@ -1,6 +1,8 @@
+mod auth;
 mod config;
 mod pages;
 mod routes;
+mod users;
 
 use config::Config;
 
@@ -14,7 +16,7 @@ async fn main() {
 
     println!("listening on http://{}", config.bind_addr);
 
-    axum::serve(listener, routes::router())
+    axum::serve(listener, routes::router(auth::AppState::new()))
         .await
         .expect("server failed");
 }

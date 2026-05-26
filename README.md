@@ -53,7 +53,7 @@ This proves that another device can reach a service running on the laptop throug
 
 ## Planned First Rust Prototype
 
-The first app version should be intentionally small:
+The first app version is intentionally small:
 
 ```text
 GET  /          -> login page or chat UI
@@ -62,7 +62,25 @@ GET  /history   -> message history for authenticated users
 GET  /ws        -> authenticated WebSocket connection
 ```
 
-Initial behavior:
+Current behavior:
+
+- `GET /` serves a login page.
+- `POST /login` validates a username and password.
+- Successful login sets an in-memory session cookie and redirects to `/chat`.
+- Failed login redirects to `/?error=1`.
+- `GET /chat` redirects unauthenticated users back to `/`.
+- `GET /chat` shows a basic authenticated placeholder after login.
+
+Temporary login credentials:
+
+| Username | Password |
+| --- | --- |
+| `daniel` | `change-me-daniel` |
+| `friend` | `change-me-friend` |
+
+These credentials are temporary scaffolding and must be replaced with Argon2id password hashes before real use.
+
+Planned behavior:
 
 - Two fixed users.
 - Passwords verified using Argon2id hashes.
@@ -88,7 +106,7 @@ Initial behavior:
 
 Build the smallest Rust server that can:
 
-1. Accept login for two users.
+1. Replace temporary plaintext credentials with Argon2id password hashes.
 2. Keep a local authenticated session.
 3. Serve a basic chat page.
 4. Send and receive messages over WebSocket.
