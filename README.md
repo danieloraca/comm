@@ -74,9 +74,9 @@ Current behavior:
 Temporary login credentials:
 
 | Username | Password |
-| --- | --- |
-| `daniel` | `change-me-daniel` |
-| `friend` | `change-me-friend` |
+|----------|----------|
+| `u1`     | `u1p`    |
+| `u2`     | `u2p`    |
 
 These credentials are temporary scaffolding and must be replaced with Argon2id password hashes before real use.
 

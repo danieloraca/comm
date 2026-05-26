@@ -5,12 +5,12 @@ struct User {
 
 const USERS: &[User] = &[
     User {
-        username: "daniel",
-        password: "change-me-daniel",
+        username: "u1",
+        password: "u1p",
     },
     User {
-        username: "friend",
-        password: "change-me-friend",
+        username: "u2",
+        password: "u2p",
     },
 ];
 
