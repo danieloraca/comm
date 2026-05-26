@@ -7,10 +7,12 @@ pub struct LoginPageQuery {
 }
 
 pub async fn login_page(Query(query): Query<LoginPageQuery>) -> Html<String> {
-    let error = if query.error.is_some() {
-        r#"<p class="error" role="alert">Invalid username or password.</p>"#
-    } else {
-        ""
+    let error = match query.error.as_deref() {
+        Some("rate_limited") => {
+            r#"<p class="error" role="alert">Too many failed attempts. Try again shortly.</p>"#
+        }
+        Some(_) => r#"<p class="error" role="alert">Invalid username or password.</p>"#,
+        None => "",
     };
 
     Html(LOGIN_PAGE.replace("{{error}}", error))

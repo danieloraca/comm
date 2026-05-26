@@ -68,6 +68,7 @@ Current behavior:
 - `POST /login` validates a username and password.
 - Successful login sets an in-memory session cookie and redirects to `/chat`.
 - Failed login redirects to `/?error=1`.
+- Five failed login attempts for the same username trigger a 60-second cooldown.
 - `GET /chat` redirects unauthenticated users back to `/`.
 - `GET /chat` shows a basic authenticated placeholder after login.
 
@@ -118,7 +119,7 @@ Planned behavior:
 - Do not store plaintext passwords.
 - Do not expose the Rust app directly to the public internet.
 - Tailscale protects network transport between devices, but the app should still implement real authentication.
-- Login should be rate-limited before use outside local testing.
+- Login attempts are rate-limited in memory; this resets when the server restarts.
 - Messages should be encrypted at rest after the basic message flow works.
 - If browser HTTPS warnings become a problem, use Tailscale HTTPS certificates or a local reverse proxy.
 
@@ -126,7 +127,6 @@ Planned behavior:
 
 Build the smallest Rust server that can:
 
-1. Add rate limiting for login attempts.
-2. Send and receive messages over WebSocket.
-3. Store and load message history locally.
-4. Encrypt stored message history at rest.
+1. Send and receive messages over WebSocket.
+2. Store and load message history locally.
+3. Encrypt stored message history at rest.
