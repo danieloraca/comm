@@ -22,11 +22,15 @@ const SESSION_COOKIE: &str = "comm_session";
 #[derive(Clone, Default)]
 pub struct AppState {
     sessions: Arc<RwLock<HashMap<String, String>>>,
+    users: users::UserStore,
 }
 
 impl AppState {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            sessions: Arc::default(),
+            users: users::UserStore::load_from_env(),
+        }
     }
 }
 
@@ -37,7 +41,10 @@ pub struct LoginForm {
 }
 
 pub async fn login(State(state): State<AppState>, Form(form): Form<LoginForm>) -> Response {
-    if !users::verify_credentials(&form.username, &form.password) {
+    if !state
+        .users
+        .verify_credentials(&form.username, &form.password)
+    {
         return Redirect::to("/?error=1").into_response();
     }
 

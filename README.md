@@ -71,19 +71,39 @@ Current behavior:
 - `GET /chat` redirects unauthenticated users back to `/`.
 - `GET /chat` shows a basic authenticated placeholder after login.
 
-Temporary login credentials:
+Local test login credentials:
 
 | Username | Password |
 |----------|----------|
 | `u1`     | `u1p`    |
 | `u2`     | `u2p`    |
 
-These credentials are temporary scaffolding and must be replaced with Argon2id password hashes before real use.
+The app does not store these passwords in Rust code. It reads Argon2id password hashes from `users.toml`, which is ignored by git.
+
+To create a password hash:
+
+```bash
+cargo run --bin hash_password
+```
+
+Then put the generated hash into `users.toml`:
+
+```toml
+[[user]]
+username = "u1"
+password_hash = "$argon2id$..."
+
+[[user]]
+username = "u2"
+password_hash = "$argon2id$..."
+```
+
+`users.example.toml` documents the file shape without storing real hashes.
 
 Planned behavior:
 
 - Two fixed users.
-- Passwords verified using Argon2id hashes.
+- Passwords verified using Argon2id hashes loaded from `users.toml`.
 - Local session cookies after login.
 - WebSocket broadcasts new messages to both connected users.
 - Message history stored locally.
@@ -106,8 +126,7 @@ Planned behavior:
 
 Build the smallest Rust server that can:
 
-1. Replace temporary plaintext credentials with Argon2id password hashes.
-2. Keep a local authenticated session.
-3. Serve a basic chat page.
-4. Send and receive messages over WebSocket.
-5. Store and load message history locally.
+1. Add rate limiting for login attempts.
+2. Send and receive messages over WebSocket.
+3. Store and load message history locally.
+4. Encrypt stored message history at rest.

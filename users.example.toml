@@ -1,0 +1,10 @@
+[[user]]
+username = "u1"
+password_hash = "replace-with-argon2id-hash"
+
+[[user]]
+username = "u2"
+password_hash = "replace-with-argon2id-hash"
+
+# Generate each hash with:
+# cargo run --bin hash_password
