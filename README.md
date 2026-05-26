@@ -70,7 +70,9 @@ Current behavior:
 - Failed login redirects to `/?error=1`.
 - Five failed login attempts for the same username trigger a 60-second cooldown.
 - `GET /chat` redirects unauthenticated users back to `/`.
-- `GET /chat` shows a basic authenticated placeholder after login.
+- `GET /chat` shows the authenticated chat UI after login.
+- `GET /ws` accepts authenticated WebSocket connections.
+- Messages sent over WebSocket are broadcast to all connected authenticated clients.
 
 Local test login credentials:
 
@@ -127,6 +129,5 @@ Planned behavior:
 
 Build the smallest Rust server that can:
 
-1. Send and receive messages over WebSocket.
-2. Store and load message history locally.
-3. Encrypt stored message history at rest.
+1. Store and load message history locally.
+2. Encrypt stored message history at rest.

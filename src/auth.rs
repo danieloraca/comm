@@ -15,15 +15,17 @@ use axum::{
 };
 use rand::random;
 use serde::Deserialize;
+use tokio::sync::broadcast;
 
-use crate::{pages, users};
+use crate::{chat, pages, users};
 
 const MAX_FAILED_LOGIN_ATTEMPTS: u32 = 5;
 const LOGIN_COOLDOWN: Duration = Duration::from_secs(60);
 const SESSION_COOKIE: &str = "comm_session";
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct AppState {
+    chat_tx: broadcast::Sender<chat::ChatMessage>,
     login_attempts: Arc<RwLock<HashMap<String, LoginAttempt>>>,
     sessions: Arc<RwLock<HashMap<String, String>>>,
     users: users::UserStore,
@@ -31,7 +33,10 @@ pub struct AppState {
 
 impl AppState {
     pub fn new() -> Self {
+        let (chat_tx, _) = broadcast::channel(100);
+
         Self {
+            chat_tx,
             login_attempts: Arc::default(),
             sessions: Arc::default(),
             users: users::UserStore::load_from_env(),
@@ -74,20 +79,25 @@ pub async fn login(State(state): State<AppState>, Form(form): Form<LoginForm>) -
 }
 
 pub async fn chat(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    match authenticated_user(&state, &headers) {
+    match state.authenticated_user(&headers) {
         Some(username) => pages::chat_page(&username).into_response(),
         None => Redirect::to("/").into_response(),
     }
 }
 
-fn authenticated_user(state: &AppState, headers: &HeaderMap) -> Option<String> {
-    let token = session_token(headers)?;
-    state
-        .sessions
-        .read()
-        .expect("session store lock poisoned")
-        .get(&token)
-        .cloned()
+impl AppState {
+    pub fn authenticated_user(&self, headers: &HeaderMap) -> Option<String> {
+        let token = session_token(headers)?;
+        self.sessions
+            .read()
+            .expect("session store lock poisoned")
+            .get(&token)
+            .cloned()
+    }
+
+    pub fn chat_sender(&self) -> broadcast::Sender<chat::ChatMessage> {
+        self.chat_tx.clone()
+    }
 }
 
 fn session_token(headers: &HeaderMap) -> Option<String> {

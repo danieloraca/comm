@@ -178,7 +178,7 @@ const LOGIN_PAGE: &str = r#"<!doctype html>
 </html>
 "#;
 
-const CHAT_PAGE: &str = r#"<!doctype html>
+const CHAT_PAGE: &str = r##"<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -199,16 +199,17 @@ const CHAT_PAGE: &str = r#"<!doctype html>
     body {
       min-height: 100vh;
       margin: 0;
-      display: grid;
-      place-items: center;
-      padding: 24px;
+      padding: 18px;
       background: #eef2f4;
     }
 
     main {
-      width: min(100%, 520px);
+      width: min(100%, 760px);
+      min-height: calc(100vh - 36px);
+      margin: 0 auto;
       display: grid;
-      gap: 10px;
+      grid-template-rows: auto 1fr auto;
+      gap: 14px;
       padding: 20px;
       border: 1px solid #d5dde2;
       border-radius: 8px;
@@ -227,6 +228,84 @@ const CHAT_PAGE: &str = r#"<!doctype html>
       color: #53636d;
     }
 
+    header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .status {
+      font-size: 0.86rem;
+    }
+
+    .messages {
+      min-height: 280px;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid #d5dde2;
+      border-radius: 6px;
+      background: #f8fafb;
+    }
+
+    .message {
+      width: fit-content;
+      max-width: min(82%, 520px);
+      padding: 8px 10px;
+      border-radius: 7px;
+      background: #e6eef4;
+      overflow-wrap: anywhere;
+    }
+
+    .message.own {
+      align-self: flex-end;
+      background: #d6e9f7;
+    }
+
+    .message strong {
+      display: block;
+      margin-bottom: 2px;
+      font-size: 0.78rem;
+    }
+
+    form {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+    }
+
+    input {
+      min-width: 0;
+      min-height: 44px;
+      padding: 10px 12px;
+      border: 1px solid #bac5cc;
+      border-radius: 6px;
+      font: inherit;
+      background: #ffffff;
+      color: #192024;
+    }
+
+    button {
+      min-height: 44px;
+      padding: 0 16px;
+      border: 0;
+      border-radius: 6px;
+      background: #1d5f8f;
+      color: #ffffff;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    input:focus,
+    button:focus {
+      outline: 3px solid #9ac2ff;
+      outline-offset: 1px;
+    }
+
     @media (prefers-color-scheme: dark) {
       :root,
       body {
@@ -243,14 +322,113 @@ const CHAT_PAGE: &str = r#"<!doctype html>
       p {
         color: #afbdc5;
       }
+
+      .messages {
+        border-color: #32434d;
+        background: #11181c;
+      }
+
+      .message {
+        background: #253641;
+      }
+
+      .message.own {
+        background: #234a66;
+      }
+
+      input {
+        border-color: #48616f;
+        background: #11181c;
+        color: #edf3f7;
+      }
+
+      button {
+        background: #4b9ad3;
+        color: #071014;
+      }
+    }
+
+    @media (max-width: 520px) {
+      body {
+        padding: 0;
+      }
+
+      main {
+        min-height: 100vh;
+        border-radius: 0;
+        border-width: 0;
+      }
+
+      form {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
 <body>
   <main>
-    <h1>Comm</h1>
-    <p>Signed in as {{username}}.</p>
+    <header>
+      <h1>Comm</h1>
+      <p class="status" id="status">Connecting as {{username}}</p>
+    </header>
+    <section class="messages" id="messages" aria-live="polite"></section>
+    <form id="chat-form">
+      <input id="message" name="message" autocomplete="off" maxlength="2000" required>
+      <button type="submit">Send</button>
+    </form>
   </main>
+  <script>
+    const currentUser = "{{username}}";
+    const statusEl = document.querySelector("#status");
+    const messagesEl = document.querySelector("#messages");
+    const form = document.querySelector("#chat-form");
+    const input = document.querySelector("#message");
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
+
+    socket.addEventListener("open", () => {
+      statusEl.textContent = `Connected as ${currentUser}`;
+      input.focus();
+    });
+
+    socket.addEventListener("close", () => {
+      statusEl.textContent = "Disconnected";
+      input.disabled = true;
+      form.querySelector("button").disabled = true;
+    });
+
+    socket.addEventListener("message", (event) => {
+      const message = JSON.parse(event.data);
+      appendMessage(message);
+    });
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const body = input.value.trim();
+
+      if (!body || socket.readyState !== WebSocket.OPEN) {
+        return;
+      }
+
+      socket.send(body);
+      input.value = "";
+    });
+
+    function appendMessage(message) {
+      const item = document.createElement("article");
+      item.className = message.from === currentUser ? "message own" : "message";
+
+      const from = document.createElement("strong");
+      from.textContent = message.from;
+
+      const body = document.createElement("span");
+      body.textContent = message.body;
+
+      item.append(from, body);
+      messagesEl.append(item);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+  </script>
 </body>
 </html>
-"#;
+"##;

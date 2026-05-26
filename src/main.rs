@@ -1,4 +1,5 @@
 mod auth;
+mod chat;
 mod config;
 mod pages;
 mod routes;
