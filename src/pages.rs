@@ -269,12 +269,14 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     }
 
     .message {
+      position: relative;
       width: fit-content;
       max-width: min(82%, 520px);
       padding: 8px 10px;
       border-radius: 7px;
       background: #e6eef4;
       overflow-wrap: anywhere;
+      cursor: pointer;
     }
 
     .message.own {
@@ -283,8 +285,6 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     }
 
     .message strong {
-      display: block;
-      margin-bottom: 2px;
       font-size: 0.78rem;
     }
 
@@ -293,6 +293,45 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       margin-top: 4px;
       font-size: 0.72rem;
       color: #53636d;
+    }
+
+    .message-menu {
+      position: absolute;
+      z-index: 2;
+      top: calc(100% + 4px);
+      left: 0;
+      min-width: 112px;
+      padding: 4px;
+      border: 1px solid #c7d1d8;
+      border-radius: 6px;
+      background: #ffffff;
+      box-shadow: 0 8px 18px rgba(25, 32, 36, 0.14);
+    }
+
+    .message.own .message-menu {
+      right: 0;
+      left: auto;
+    }
+
+    .message-menu[hidden] {
+      display: none;
+    }
+
+    .message-action {
+      width: 100%;
+      min-height: 34px;
+      padding: 0 10px;
+      border: 0;
+      border-radius: 4px;
+      background: transparent;
+      color: #8a1f1f;
+      text-align: left;
+      font-size: 0.88rem;
+    }
+
+    .message-action:hover,
+    .message-action:focus {
+      background: #fff0f0;
     }
 
     form {
@@ -362,6 +401,21 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
       .message time {
         color: #afbdc5;
+      }
+
+      .message-menu {
+        border-color: #48616f;
+        background: #182229;
+        box-shadow: none;
+      }
+
+      .message-action {
+        color: #ffd4d4;
+      }
+
+      .message-action:hover,
+      .message-action:focus {
+        background: #311d1d;
       }
 
       input {
@@ -441,8 +495,15 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     });
 
     socket.addEventListener("message", (event) => {
-      const message = JSON.parse(event.data);
-      appendMessage(message);
+      const serverEvent = JSON.parse(event.data);
+
+      if (serverEvent.type === "message") {
+        appendMessage(serverEvent);
+      }
+
+      if (serverEvent.type === "delete") {
+        removeMessage(serverEvent.id);
+      }
     });
 
     form.addEventListener("submit", (event) => {
@@ -453,13 +514,30 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         return;
       }
 
-      socket.send(body);
+      socket.send(JSON.stringify({ type: "message", body }));
       input.value = "";
     });
 
+    document.addEventListener("click", (event) => {
+      if (!event.target.closest(".message")) {
+        closeMessageMenus();
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        closeMessageMenus();
+      }
+    });
+
     function appendMessage(message) {
+      if (document.querySelector(`[data-message-id="${message.id}"]`)) {
+        return;
+      }
+
       const item = document.createElement("article");
       item.className = message.from === currentUser ? "message own" : "message";
+      item.dataset.messageId = message.id;
 
       const from = document.createElement("strong");
       from.textContent = message.from;
@@ -474,9 +552,53 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         ? message.created_at
         : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-      item.append(from, body, sentAt);
+      const menu = document.createElement("div");
+      menu.className = "message-menu";
+      menu.hidden = true;
+
+      const deleteButton = document.createElement("button");
+      deleteButton.className = "message-action";
+      deleteButton.type = "button";
+      deleteButton.textContent = "Delete";
+      deleteButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ type: "delete", id: message.id }));
+        }
+
+        closeMessageMenus();
+      });
+
+      menu.append(deleteButton);
+
+      item.addEventListener("click", (event) => {
+        if (event.target.closest(".message-menu")) {
+          return;
+        }
+
+        const willOpen = menu.hidden;
+        closeMessageMenus();
+        menu.hidden = !willOpen;
+      });
+
+      item.append(from, body, sentAt, menu);
       messagesEl.append(item);
       messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function removeMessage(id) {
+      const item = document.querySelector(`[data-message-id="${id}"]`);
+
+      if (item) {
+        item.remove();
+      }
+    }
+
+    function closeMessageMenus() {
+      document.querySelectorAll(".message-menu").forEach((menu) => {
+        menu.hidden = true;
+      });
     }
   </script>
 </body>

@@ -36,6 +36,7 @@ impl MessageStore {
                 body TEXT,
                 body_ciphertext BLOB,
                 body_nonce BLOB,
+                deleted_at TEXT,
                 created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
             )
             "#,
@@ -78,6 +79,7 @@ impl MessageStore {
             FROM (
                 SELECT id, sender, body, body_ciphertext, body_nonce, created_at
                 FROM messages
+                WHERE deleted_at IS NULL
                 ORDER BY id DESC
                 LIMIT ?
             )
@@ -94,6 +96,21 @@ impl MessageStore {
         }
 
         Ok(messages)
+    }
+
+    pub async fn delete_message(&self, id: i64) -> sqlx::Result<bool> {
+        let result = sqlx::query(
+            r#"
+            UPDATE messages
+            SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE id = ? AND deleted_at IS NULL
+            "#,
+        )
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(result.rows_affected() > 0)
     }
 
     async fn decrypt_row(&self, row: MessageRow) -> StoredMessage {
@@ -183,6 +200,13 @@ async fn ensure_encrypted_columns(pool: &SqlitePool) {
             .execute(pool)
             .await
             .unwrap_or_else(|error| panic!("failed to add body_nonce column: {error}"));
+    }
+
+    if !existing_columns.iter().any(|column| column == "deleted_at") {
+        sqlx::query("ALTER TABLE messages ADD COLUMN deleted_at TEXT")
+            .execute(pool)
+            .await
+            .unwrap_or_else(|error| panic!("failed to add deleted_at column: {error}"));
     }
 }
 

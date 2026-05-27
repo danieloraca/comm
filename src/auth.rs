@@ -25,7 +25,7 @@ const SESSION_COOKIE: &str = "comm_session";
 
 #[derive(Clone)]
 pub struct AppState {
-    chat_tx: broadcast::Sender<chat::ChatMessage>,
+    chat_tx: broadcast::Sender<chat::ServerEvent>,
     login_attempts: Arc<RwLock<HashMap<String, LoginAttempt>>>,
     sessions: Arc<RwLock<HashMap<String, String>>>,
     store: store::MessageStore,
@@ -113,7 +113,7 @@ impl AppState {
             .cloned()
     }
 
-    pub fn chat_sender(&self) -> broadcast::Sender<chat::ChatMessage> {
+    pub fn chat_sender(&self) -> broadcast::Sender<chat::ServerEvent> {
         self.chat_tx.clone()
     }
 
