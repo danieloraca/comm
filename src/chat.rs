@@ -10,14 +10,16 @@ use futures_util::{SinkExt, StreamExt};
 use serde::Serialize;
 use tokio::sync::broadcast;
 
-use crate::auth::AppState;
+use crate::{auth::AppState, store::StoredMessage};
 
 const MAX_MESSAGE_LEN: usize = 2_000;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct ChatMessage {
+    id: i64,
     from: String,
     body: String,
+    created_at: String,
 }
 
 pub async fn websocket(
@@ -36,6 +38,19 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
     let (mut sender, mut receiver) = socket.split();
     let chat_tx = state.chat_sender();
     let mut chat_rx = chat_tx.subscribe();
+    let store = state.message_store();
+
+    if let Ok(history) = store.recent_messages().await {
+        for message in history.into_iter().map(ChatMessage::from) {
+            let Ok(payload) = serde_json::to_string(&message) else {
+                continue;
+            };
+
+            if sender.send(Message::Text(payload.into())).await.is_err() {
+                return;
+            }
+        }
+    }
 
     let send_task = tokio::spawn(async move {
         loop {
@@ -64,10 +79,11 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
                     continue;
                 }
 
-                let _ = chat_tx.send(ChatMessage {
-                    from: username.clone(),
-                    body: body.to_owned(),
-                });
+                let Ok(stored) = store.save_message(&username, body).await else {
+                    continue;
+                };
+
+                let _ = chat_tx.send(ChatMessage::from(stored));
             }
             Message::Close(_) => break,
             _ => {}
@@ -75,4 +91,15 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
     }
 
     send_task.abort();
+}
+
+impl From<StoredMessage> for ChatMessage {
+    fn from(message: StoredMessage) -> Self {
+        Self {
+            id: message.id,
+            from: message.sender,
+            body: message.body,
+            created_at: message.created_at,
+        }
+    }
 }

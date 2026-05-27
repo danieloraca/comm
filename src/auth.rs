@@ -17,7 +17,7 @@ use rand::random;
 use serde::Deserialize;
 use tokio::sync::broadcast;
 
-use crate::{chat, pages, users};
+use crate::{chat, pages, store, users};
 
 const MAX_FAILED_LOGIN_ATTEMPTS: u32 = 5;
 const LOGIN_COOLDOWN: Duration = Duration::from_secs(60);
@@ -28,17 +28,19 @@ pub struct AppState {
     chat_tx: broadcast::Sender<chat::ChatMessage>,
     login_attempts: Arc<RwLock<HashMap<String, LoginAttempt>>>,
     sessions: Arc<RwLock<HashMap<String, String>>>,
+    store: store::MessageStore,
     users: users::UserStore,
 }
 
 impl AppState {
-    pub fn new() -> Self {
+    pub async fn new() -> Self {
         let (chat_tx, _) = broadcast::channel(100);
 
         Self {
             chat_tx,
             login_attempts: Arc::default(),
             sessions: Arc::default(),
+            store: store::MessageStore::load_from_env().await,
             users: users::UserStore::load_from_env(),
         }
     }
@@ -97,6 +99,10 @@ impl AppState {
 
     pub fn chat_sender(&self) -> broadcast::Sender<chat::ChatMessage> {
         self.chat_tx.clone()
+    }
+
+    pub fn message_store(&self) -> store::MessageStore {
+        self.store.clone()
     }
 }
 

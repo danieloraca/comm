@@ -73,6 +73,9 @@ Current behavior:
 - `GET /chat` shows the authenticated chat UI after login.
 - `GET /ws` accepts authenticated WebSocket connections.
 - Messages sent over WebSocket are broadcast to all connected authenticated clients.
+- Messages are stored locally in SQLite.
+- New WebSocket clients receive recent message history after connecting.
+- Message bodies are encrypted at rest before being written to SQLite.
 
 Local test login credentials:
 
@@ -109,7 +112,8 @@ Planned behavior:
 - Passwords verified using Argon2id hashes loaded from `users.toml`.
 - Local session cookies after login.
 - WebSocket broadcasts new messages to both connected users.
-- Message history stored locally.
+- Message history stored locally in `comm.sqlite3` by default.
+- Message encryption key stored locally in `message.key` by default.
 - Server binds to the MacBook Tailscale IP:
 
   ```text
@@ -122,12 +126,14 @@ Planned behavior:
 - Do not expose the Rust app directly to the public internet.
 - Tailscale protects network transport between devices, but the app should still implement real authentication.
 - Login attempts are rate-limited in memory; this resets when the server restarts.
-- Messages should be encrypted at rest after the basic message flow works.
+- Message bodies are encrypted with a local key before being stored in SQLite.
+- If someone copies only `comm.sqlite3`, they should not be able to read message bodies.
+- If someone copies both `comm.sqlite3` and `message.key`, they can decrypt message bodies.
 - If browser HTTPS warnings become a problem, use Tailscale HTTPS certificates or a local reverse proxy.
 
 ## Next Step
 
 Build the smallest Rust server that can:
 
-1. Store and load message history locally.
-2. Encrypt stored message history at rest.
+1. Add logout and session cleanup.
+2. Improve operational hardening before real use.

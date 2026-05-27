@@ -271,6 +271,13 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       font-size: 0.78rem;
     }
 
+    .message time {
+      display: block;
+      margin-top: 4px;
+      font-size: 0.72rem;
+      color: #53636d;
+    }
+
     form {
       display: grid;
       grid-template-columns: 1fr auto;
@@ -334,6 +341,10 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
       .message.own {
         background: #234a66;
+      }
+
+      .message time {
+        color: #afbdc5;
       }
 
       input {
@@ -424,7 +435,14 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       const body = document.createElement("span");
       body.textContent = message.body;
 
-      item.append(from, body);
+      const sentAt = document.createElement("time");
+      const date = new Date(message.created_at);
+      sentAt.dateTime = message.created_at;
+      sentAt.textContent = Number.isNaN(date.getTime())
+        ? message.created_at
+        : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+      item.append(from, body, sentAt);
       messagesEl.append(item);
       messagesEl.scrollTop = messagesEl.scrollHeight;
     }
