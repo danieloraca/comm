@@ -27,6 +27,8 @@ pub enum ServerEvent {
     },
     #[serde(rename = "delete_for_everyone")]
     DeleteForEveryone { id: i64 },
+    #[serde(rename = "typing")]
+    Typing { from: String, is_typing: bool },
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -46,6 +48,8 @@ enum ClientEvent {
     DeleteForMe { id: i64 },
     #[serde(rename = "delete_for_everyone")]
     DeleteForEveryone { id: i64 },
+    #[serde(rename = "typing")]
+    Typing { is_typing: bool },
 }
 
 pub async fn websocket(
@@ -94,6 +98,11 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
                             ..
                         } if target_username != &send_username
                     ) {
+                        continue;
+                    }
+
+                    if matches!(&event, ServerEvent::Typing { from, .. } if from == &send_username)
+                    {
                         continue;
                     }
 
@@ -149,6 +158,12 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
                         };
 
                         let _ = chat_tx.send(ServerEvent::DeleteForEveryone { id });
+                    }
+                    ClientEvent::Typing { is_typing } => {
+                        let _ = chat_tx.send(ServerEvent::Typing {
+                            from: username.clone(),
+                            is_typing,
+                        });
                     }
                 }
             }

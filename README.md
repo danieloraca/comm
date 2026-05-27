@@ -78,6 +78,7 @@ Current behavior:
 - New WebSocket clients receive recent message history after connecting.
 - Message bodies are encrypted at rest before being written to SQLite.
 - Messages can be deleted for one user or soft-deleted for everyone by their sender.
+- Typing indicators are sent as transient WebSocket events and are not stored.
 
 Local test login credentials:
 

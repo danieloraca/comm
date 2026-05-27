@@ -244,6 +244,12 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       font-size: 0.86rem;
     }
 
+    .typing {
+      min-height: 18px;
+      font-size: 0.84rem;
+      color: #53636d;
+    }
+
     .logout-form {
       display: block;
     }
@@ -395,6 +401,10 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         color: #afbdc5;
       }
 
+      .typing {
+        color: #afbdc5;
+      }
+
       .messages {
         border-color: #32434d;
         background: #11181c;
@@ -487,6 +497,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       </form>
     </header>
     <section class="messages" id="messages" aria-live="polite"></section>
+    <p class="typing" id="typing" aria-live="polite"></p>
     <form id="chat-form">
       <input id="message" name="message" autocomplete="off" maxlength="2000" required>
       <button type="submit">Send</button>
@@ -496,10 +507,13 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     const currentUser = "{{username}}";
     const statusEl = document.querySelector("#status");
     const messagesEl = document.querySelector("#messages");
+    const typingEl = document.querySelector("#typing");
     const form = document.querySelector("#chat-form");
     const input = document.querySelector("#message");
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
+    let typingTimeoutId = null;
+    let typingSent = false;
 
     socket.addEventListener("open", () => {
       statusEl.textContent = `Connected as ${currentUser}`;
@@ -522,6 +536,12 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       if (serverEvent.type === "delete_for_me" || serverEvent.type === "delete_for_everyone") {
         removeMessage(serverEvent.id);
       }
+
+      if (serverEvent.type === "typing") {
+        typingEl.textContent = serverEvent.is_typing
+          ? `${serverEvent.from} is typing...`
+          : "";
+      }
     });
 
     form.addEventListener("submit", (event) => {
@@ -534,6 +554,26 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
       socket.send(JSON.stringify({ type: "message", body }));
       input.value = "";
+      sendTyping(false);
+    });
+
+    input.addEventListener("input", () => {
+      if (!input.value.trim()) {
+        sendTyping(false);
+        return;
+      }
+
+      sendTyping(true);
+      window.clearTimeout(typingTimeoutId);
+      typingTimeoutId = window.setTimeout(() => sendTyping(false), 1500);
+    });
+
+    input.addEventListener("blur", () => sendTyping(false));
+
+    window.addEventListener("beforeunload", () => {
+      if (socket.readyState === WebSocket.OPEN && typingSent) {
+        socket.send(JSON.stringify({ type: "typing", is_typing: false }));
+      }
     });
 
     document.addEventListener("click", (event) => {
@@ -635,6 +675,17 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       document.querySelectorAll(".message-menu").forEach((menu) => {
         menu.hidden = true;
       });
+    }
+
+    function sendTyping(isTyping) {
+      window.clearTimeout(typingTimeoutId);
+
+      if (typingSent === isTyping || socket.readyState !== WebSocket.OPEN) {
+        return;
+      }
+
+      typingSent = isTyping;
+      socket.send(JSON.stringify({ type: "typing", is_typing: isTyping }));
     }
   </script>
 </body>
