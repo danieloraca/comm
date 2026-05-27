@@ -300,7 +300,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       z-index: 2;
       top: calc(100% + 4px);
       left: 0;
-      min-width: 112px;
+      min-width: 178px;
       padding: 4px;
       border: 1px solid #c7d1d8;
       border-radius: 6px;
@@ -324,13 +324,22 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       border: 0;
       border-radius: 4px;
       background: transparent;
-      color: #8a1f1f;
+      color: #192024;
       text-align: left;
       font-size: 0.88rem;
     }
 
     .message-action:hover,
     .message-action:focus {
+      background: #edf3f7;
+    }
+
+    .message-action.danger {
+      color: #8a1f1f;
+    }
+
+    .message-action.danger:hover,
+    .message-action.danger:focus {
       background: #fff0f0;
     }
 
@@ -410,11 +419,20 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       }
 
       .message-action {
-        color: #ffd4d4;
+        color: #edf3f7;
       }
 
       .message-action:hover,
       .message-action:focus {
+        background: #253641;
+      }
+
+      .message-action.danger {
+        color: #ffd4d4;
+      }
+
+      .message-action.danger:hover,
+      .message-action.danger:focus {
         background: #311d1d;
       }
 
@@ -501,7 +519,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         appendMessage(serverEvent);
       }
 
-      if (serverEvent.type === "delete") {
+      if (serverEvent.type === "delete_for_me" || serverEvent.type === "delete_for_everyone") {
         removeMessage(serverEvent.id);
       }
     });
@@ -556,21 +574,39 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       menu.className = "message-menu";
       menu.hidden = true;
 
-      const deleteButton = document.createElement("button");
-      deleteButton.className = "message-action";
-      deleteButton.type = "button";
-      deleteButton.textContent = "Delete";
-      deleteButton.addEventListener("click", (event) => {
+      const deleteForMeButton = document.createElement("button");
+      deleteForMeButton.className = "message-action";
+      deleteForMeButton.type = "button";
+      deleteForMeButton.textContent = "Delete for me";
+      deleteForMeButton.addEventListener("click", (event) => {
         event.stopPropagation();
 
         if (socket.readyState === WebSocket.OPEN) {
-          socket.send(JSON.stringify({ type: "delete", id: message.id }));
+          socket.send(JSON.stringify({ type: "delete_for_me", id: message.id }));
         }
 
         closeMessageMenus();
       });
 
-      menu.append(deleteButton);
+      menu.append(deleteForMeButton);
+
+      if (message.from === currentUser) {
+        const deleteForEveryoneButton = document.createElement("button");
+        deleteForEveryoneButton.className = "message-action danger";
+        deleteForEveryoneButton.type = "button";
+        deleteForEveryoneButton.textContent = "Delete for everyone";
+        deleteForEveryoneButton.addEventListener("click", (event) => {
+          event.stopPropagation();
+
+          if (socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ type: "delete_for_everyone", id: message.id }));
+          }
+
+          closeMessageMenus();
+        });
+
+        menu.append(deleteForEveryoneButton);
+      }
 
       item.addEventListener("click", (event) => {
         if (event.target.closest(".message-menu")) {

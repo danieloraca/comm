@@ -77,7 +77,7 @@ Current behavior:
 - Messages are stored locally in SQLite.
 - New WebSocket clients receive recent message history after connecting.
 - Message bodies are encrypted at rest before being written to SQLite.
-- Messages can be soft-deleted; deleted messages are removed from live clients and excluded from future history.
+- Messages can be deleted for one user or soft-deleted for everyone by their sender.
 
 Local test login credentials:
 
@@ -116,7 +116,8 @@ Planned behavior:
 - WebSocket broadcasts new messages to both connected users.
 - Message history stored locally in `comm.sqlite3` by default.
 - Message encryption key stored locally in `message.key` by default.
-- Deleted messages keep a row with `deleted_at` set, but are no longer returned to clients.
+- `Delete for me` stores a row in `hidden_messages` and only affects that user's history/view.
+- `Delete for everyone` sets `messages.deleted_at`, is only allowed for the sender, and removes the message for all clients.
 - Server binds to the MacBook Tailscale IP:
 
   ```text

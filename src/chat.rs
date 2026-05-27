@@ -19,8 +19,14 @@ const MAX_MESSAGE_LEN: usize = 2_000;
 pub enum ServerEvent {
     #[serde(rename = "message")]
     Message(ChatMessage),
-    #[serde(rename = "delete")]
-    Delete { id: i64 },
+    #[serde(rename = "delete_for_me")]
+    DeleteForMe {
+        id: i64,
+        #[serde(skip)]
+        username: String,
+    },
+    #[serde(rename = "delete_for_everyone")]
+    DeleteForEveryone { id: i64 },
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -36,8 +42,10 @@ pub struct ChatMessage {
 enum ClientEvent {
     #[serde(rename = "message")]
     Message { body: String },
-    #[serde(rename = "delete")]
-    Delete { id: i64 },
+    #[serde(rename = "delete_for_me")]
+    DeleteForMe { id: i64 },
+    #[serde(rename = "delete_for_everyone")]
+    DeleteForEveryone { id: i64 },
 }
 
 pub async fn websocket(
@@ -57,8 +65,9 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
     let chat_tx = state.chat_sender();
     let mut chat_rx = chat_tx.subscribe();
     let store = state.message_store();
+    let send_username = username.clone();
 
-    if let Ok(history) = store.recent_messages().await {
+    if let Ok(history) = store.recent_messages(&username).await {
         for message in history
             .into_iter()
             .map(ChatMessage::from)
@@ -78,6 +87,16 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
         loop {
             match chat_rx.recv().await {
                 Ok(event) => {
+                    if matches!(
+                        &event,
+                        ServerEvent::DeleteForMe {
+                            username: target_username,
+                            ..
+                        } if target_username != &send_username
+                    ) {
+                        continue;
+                    }
+
                     let Ok(payload) = serde_json::to_string(&event) else {
                         continue;
                     };
@@ -113,12 +132,23 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
 
                         let _ = chat_tx.send(ServerEvent::Message(ChatMessage::from(stored)));
                     }
-                    ClientEvent::Delete { id } => {
-                        let Ok(true) = store.delete_message(id).await else {
+                    ClientEvent::DeleteForMe { id } => {
+                        let Ok(true) = store.hide_message_for_user(&username, id).await else {
                             continue;
                         };
 
-                        let _ = chat_tx.send(ServerEvent::Delete { id });
+                        let _ = chat_tx.send(ServerEvent::DeleteForMe {
+                            id,
+                            username: username.clone(),
+                        });
+                    }
+                    ClientEvent::DeleteForEveryone { id } => {
+                        let Ok(true) = store.delete_message_for_everyone(&username, id).await
+                        else {
+                            continue;
+                        };
+
+                        let _ = chat_tx.send(ServerEvent::DeleteForEveryone { id });
                     }
                 }
             }

@@ -46,6 +46,7 @@ impl MessageStore {
         .unwrap_or_else(|error| panic!("failed to create message schema: {error}"));
 
         ensure_encrypted_columns(&pool).await;
+        ensure_hidden_messages_table(&pool).await;
 
         Self { crypto, pool }
     }
@@ -72,7 +73,7 @@ impl MessageStore {
         Ok(self.decrypt_row(row).await)
     }
 
-    pub async fn recent_messages(&self) -> sqlx::Result<Vec<StoredMessage>> {
+    pub async fn recent_messages(&self, username: &str) -> sqlx::Result<Vec<StoredMessage>> {
         let rows = sqlx::query_as::<_, MessageRow>(
             r#"
             SELECT id, sender, body, body_ciphertext, body_nonce, created_at
@@ -80,12 +81,18 @@ impl MessageStore {
                 SELECT id, sender, body, body_ciphertext, body_nonce, created_at
                 FROM messages
                 WHERE deleted_at IS NULL
+                AND id NOT IN (
+                    SELECT message_id
+                    FROM hidden_messages
+                    WHERE username = ?
+                )
                 ORDER BY id DESC
                 LIMIT ?
             )
             ORDER BY id ASC
             "#,
         )
+        .bind(username)
         .bind(HISTORY_LIMIT)
         .fetch_all(&self.pool)
         .await?;
@@ -98,15 +105,33 @@ impl MessageStore {
         Ok(messages)
     }
 
-    pub async fn delete_message(&self, id: i64) -> sqlx::Result<bool> {
+    pub async fn hide_message_for_user(&self, username: &str, id: i64) -> sqlx::Result<bool> {
+        let result = sqlx::query(
+            r#"
+            INSERT OR IGNORE INTO hidden_messages (username, message_id)
+            SELECT ?, id
+            FROM messages
+            WHERE id = ? AND deleted_at IS NULL
+            "#,
+        )
+        .bind(username)
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
+    pub async fn delete_message_for_everyone(&self, username: &str, id: i64) -> sqlx::Result<bool> {
         let result = sqlx::query(
             r#"
             UPDATE messages
             SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-            WHERE id = ? AND deleted_at IS NULL
+            WHERE id = ? AND sender = ? AND deleted_at IS NULL
             "#,
         )
         .bind(id)
+        .bind(username)
         .execute(&self.pool)
         .await?;
 
@@ -158,6 +183,23 @@ impl MessageStore {
         .await
         .unwrap_or_else(|error| panic!("failed to encrypt existing message {id}: {error}"));
     }
+}
+
+async fn ensure_hidden_messages_table(pool: &SqlitePool) {
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS hidden_messages (
+            username TEXT NOT NULL,
+            message_id INTEGER NOT NULL,
+            hidden_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+            PRIMARY KEY (username, message_id),
+            FOREIGN KEY (message_id) REFERENCES messages(id)
+        )
+        "#,
+    )
+    .execute(pool)
+    .await
+    .unwrap_or_else(|error| panic!("failed to create hidden message schema: {error}"));
 }
 
 #[derive(Debug)]
