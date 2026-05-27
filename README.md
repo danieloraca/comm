@@ -71,6 +71,7 @@ Current behavior:
 - Five failed login attempts for the same username trigger a 60-second cooldown.
 - `GET /chat` redirects unauthenticated users back to `/`.
 - `GET /chat` shows the authenticated chat UI after login.
+- `POST /logout` removes the in-memory session and expires the session cookie.
 - `GET /ws` accepts authenticated WebSocket connections.
 - Messages sent over WebSocket are broadcast to all connected authenticated clients.
 - Messages are stored locally in SQLite.
@@ -135,5 +136,4 @@ Planned behavior:
 
 Build the smallest Rust server that can:
 
-1. Add logout and session cleanup.
-2. Improve operational hardening before real use.
+1. Improve operational hardening before real use.
