@@ -87,6 +87,22 @@ pub async fn chat(State(state): State<AppState>, headers: HeaderMap) -> Response
     }
 }
 
+pub async fn logout(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    if let Some(token) = session_token(&headers) {
+        state
+            .sessions
+            .write()
+            .expect("session store lock poisoned")
+            .remove(&token);
+    }
+
+    let mut response = Redirect::to("/").into_response();
+    response
+        .headers_mut()
+        .insert(SET_COOKIE, expired_session_cookie());
+    response
+}
+
 impl AppState {
     pub fn authenticated_user(&self, headers: &HeaderMap) -> Option<String> {
         let token = session_token(headers)?;
@@ -118,6 +134,12 @@ fn session_cookie(token: &str) -> HeaderValue {
     let cookie =
         format!("{SESSION_COOKIE}={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=86400");
     HeaderValue::from_str(&cookie).expect("session cookie should be a valid header value")
+}
+
+fn expired_session_cookie() -> HeaderValue {
+    HeaderValue::from_static(
+        "comm_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT",
+    )
 }
 
 fn create_session_token() -> String {

@@ -230,13 +230,30 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
     header {
       display: flex;
-      align-items: baseline;
+      align-items: center;
       justify-content: space-between;
       gap: 12px;
     }
 
+    .title {
+      display: grid;
+      gap: 2px;
+    }
+
     .status {
       font-size: 0.86rem;
+    }
+
+    .logout-form {
+      display: block;
+    }
+
+    .logout-button {
+      min-height: 36px;
+      padding: 0 12px;
+      background: transparent;
+      color: #1d5f8f;
+      border: 1px solid #9fb5c3;
     }
 
     .messages {
@@ -357,6 +374,12 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         background: #4b9ad3;
         color: #071014;
       }
+
+      .logout-button {
+        background: transparent;
+        color: #8bc7f0;
+        border-color: #48616f;
+      }
     }
 
     @media (max-width: 520px) {
@@ -373,14 +396,23 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       form {
         grid-template-columns: 1fr;
       }
+
+      header {
+        align-items: start;
+      }
     }
   </style>
 </head>
 <body>
   <main>
     <header>
-      <h1>Comm</h1>
-      <p class="status" id="status">Connecting as {{username}}</p>
+      <div class="title">
+        <h1>Comm</h1>
+        <p class="status" id="status">Connecting as {{username}}</p>
+      </div>
+      <form class="logout-form" method="post" action="/logout">
+        <button class="logout-button" type="submit">Log out</button>
+      </form>
     </header>
     <section class="messages" id="messages" aria-live="polite"></section>
     <form id="chat-form">
