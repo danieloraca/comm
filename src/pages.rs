@@ -351,8 +351,13 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
     form {
       display: grid;
-      grid-template-columns: 1fr auto;
+      grid-template-columns: auto 1fr auto;
       gap: 10px;
+    }
+
+    .emoji-bar {
+      display: flex;
+      gap: 6px;
     }
 
     input {
@@ -376,6 +381,63 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       font: inherit;
       font-weight: 700;
       cursor: pointer;
+    }
+
+    .emoji-button {
+      width: 44px;
+      min-height: 44px;
+      padding: 0;
+      border: 1px solid #bac5cc;
+      background: #ffffff;
+      color: #192024;
+      font-size: 1.15rem;
+    }
+
+    .input-wrap {
+      position: relative;
+      min-width: 0;
+    }
+
+    .input-wrap input {
+      width: 100%;
+    }
+
+    .emoji-suggestions {
+      position: absolute;
+      z-index: 3;
+      right: 0;
+      bottom: calc(100% + 6px);
+      min-width: 180px;
+      padding: 4px;
+      border: 1px solid #c7d1d8;
+      border-radius: 6px;
+      background: #ffffff;
+      box-shadow: 0 8px 18px rgba(25, 32, 36, 0.14);
+    }
+
+    .emoji-suggestions[hidden] {
+      display: none;
+    }
+
+    .emoji-suggestion {
+      width: 100%;
+      min-height: 34px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 10px;
+      border: 0;
+      border-radius: 4px;
+      background: transparent;
+      color: #192024;
+      text-align: left;
+      font-size: 0.9rem;
+    }
+
+    .emoji-suggestion[aria-selected="true"],
+    .emoji-suggestion:hover,
+    .emoji-suggestion:focus {
+      background: #edf3f7;
     }
 
     input:focus,
@@ -457,6 +519,28 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         color: #071014;
       }
 
+      .emoji-button {
+        border-color: #48616f;
+        background: #11181c;
+        color: #edf3f7;
+      }
+
+      .emoji-suggestions {
+        border-color: #48616f;
+        background: #182229;
+        box-shadow: none;
+      }
+
+      .emoji-suggestion {
+        color: #edf3f7;
+      }
+
+      .emoji-suggestion[aria-selected="true"],
+      .emoji-suggestion:hover,
+      .emoji-suggestion:focus {
+        background: #253641;
+      }
+
       .logout-button {
         background: transparent;
         color: #8bc7f0;
@@ -499,7 +583,14 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     <section class="messages" id="messages" aria-live="polite"></section>
     <p class="typing" id="typing" aria-live="polite"></p>
     <form id="chat-form">
-      <input id="message" name="message" autocomplete="off" maxlength="2000" required>
+      <div class="emoji-bar" aria-label="Emoji shortcuts">
+        <button class="emoji-button" type="button" data-emoji="🙂" title="Smile">🙂</button>
+        <button class="emoji-button" type="button" data-emoji="❤️" title="Heart">❤️</button>
+      </div>
+      <div class="input-wrap">
+        <div class="emoji-suggestions" id="emoji-suggestions" role="listbox" hidden></div>
+        <input id="message" name="message" autocomplete="off" maxlength="2000" required>
+      </div>
       <button type="submit">Send</button>
     </form>
   </main>
@@ -510,10 +601,17 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     const typingEl = document.querySelector("#typing");
     const form = document.querySelector("#chat-form");
     const input = document.querySelector("#message");
+    const emojiSuggestionsEl = document.querySelector("#emoji-suggestions");
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
+    const emojiShortcodes = [
+      { code: "heart", emoji: "❤️" },
+      { code: "smile", emoji: "🙂" },
+    ];
     let typingTimeoutId = null;
     let typingSent = false;
+    let activeEmojiMatch = null;
+    let selectedEmojiIndex = 0;
 
     socket.addEventListener("open", () => {
       statusEl.textContent = `Connected as ${currentUser}`;
@@ -546,7 +644,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
     form.addEventListener("submit", (event) => {
       event.preventDefault();
-      const body = input.value.trim();
+      const body = expandEmojiShortcodes(input.value.trim());
 
       if (!body || socket.readyState !== WebSocket.OPEN) {
         return;
@@ -563,12 +661,51 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         return;
       }
 
+      updateEmojiSuggestions();
       sendTyping(true);
       window.clearTimeout(typingTimeoutId);
       typingTimeoutId = window.setTimeout(() => sendTyping(false), 1500);
     });
 
     input.addEventListener("blur", () => sendTyping(false));
+
+    input.addEventListener("click", updateEmojiSuggestions);
+
+    input.addEventListener("keydown", (event) => {
+      if (emojiSuggestionsEl.hidden) {
+        return;
+      }
+
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        moveEmojiSelection(1);
+      }
+
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        moveEmojiSelection(-1);
+      }
+
+      if (event.key === "Enter") {
+        event.preventDefault();
+        applySelectedEmoji();
+      }
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeEmojiSuggestions();
+      }
+    });
+
+    document.querySelectorAll("[data-emoji]").forEach((button) => {
+      button.addEventListener("click", () => {
+        insertAtCursor(button.dataset.emoji);
+        sendTyping(true);
+        window.clearTimeout(typingTimeoutId);
+        typingTimeoutId = window.setTimeout(() => sendTyping(false), 1500);
+        closeEmojiSuggestions();
+      });
+    });
 
     window.addEventListener("beforeunload", () => {
       if (socket.readyState === WebSocket.OPEN && typingSent) {
@@ -580,11 +717,16 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       if (!event.target.closest(".message")) {
         closeMessageMenus();
       }
+
+      if (!event.target.closest(".input-wrap")) {
+        closeEmojiSuggestions();
+      }
     });
 
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
         closeMessageMenus();
+        closeEmojiSuggestions();
       }
     });
 
@@ -686,6 +828,111 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
       typingSent = isTyping;
       socket.send(JSON.stringify({ type: "typing", is_typing: isTyping }));
+    }
+
+    function insertAtCursor(value) {
+      const start = input.selectionStart ?? input.value.length;
+      const end = input.selectionEnd ?? input.value.length;
+      input.value = `${input.value.slice(0, start)}${value}${input.value.slice(end)}`;
+      const nextPosition = start + value.length;
+      input.focus();
+      input.setSelectionRange(nextPosition, nextPosition);
+    }
+
+    function updateEmojiSuggestions() {
+      const match = activeEmojiShortcode();
+
+      if (!match) {
+        closeEmojiSuggestions();
+        return;
+      }
+
+      const matches = emojiShortcodes.filter((entry) => entry.code.startsWith(match.query));
+
+      if (matches.length === 0) {
+        closeEmojiSuggestions();
+        return;
+      }
+
+      const previousQuery = activeEmojiMatch?.query;
+      activeEmojiMatch = { ...match, matches };
+      if (previousQuery !== match.query) {
+        selectedEmojiIndex = 0;
+      }
+      selectedEmojiIndex = Math.min(selectedEmojiIndex, matches.length - 1);
+      emojiSuggestionsEl.replaceChildren(
+        ...matches.map((entry, index) => {
+          const option = document.createElement("button");
+          option.className = "emoji-suggestion";
+          option.type = "button";
+          option.role = "option";
+          option.ariaSelected = index === selectedEmojiIndex ? "true" : "false";
+          option.textContent = `${entry.emoji} :${entry.code}`;
+          option.addEventListener("mousedown", (event) => event.preventDefault());
+          option.addEventListener("click", () => {
+            selectedEmojiIndex = index;
+            applySelectedEmoji();
+          });
+          return option;
+        })
+      );
+      emojiSuggestionsEl.hidden = false;
+    }
+
+    function activeEmojiShortcode() {
+      const cursor = input.selectionStart ?? input.value.length;
+      const prefix = input.value.slice(0, cursor);
+      const match = prefix.match(/(^|\s):([a-z]{1,20})$/i);
+
+      if (!match) {
+        return null;
+      }
+
+      return {
+        start: cursor - match[2].length - 1,
+        end: cursor,
+        query: match[2].toLowerCase(),
+      };
+    }
+
+    function moveEmojiSelection(direction) {
+      if (!activeEmojiMatch) {
+        return;
+      }
+
+      const count = activeEmojiMatch.matches.length;
+      selectedEmojiIndex = (selectedEmojiIndex + direction + count) % count;
+      updateEmojiSuggestions();
+    }
+
+    function applySelectedEmoji() {
+      if (!activeEmojiMatch) {
+        return;
+      }
+
+      const entry = activeEmojiMatch.matches[selectedEmojiIndex];
+      input.value =
+        input.value.slice(0, activeEmojiMatch.start) +
+        entry.emoji +
+        input.value.slice(activeEmojiMatch.end);
+      const nextPosition = activeEmojiMatch.start + entry.emoji.length;
+      input.focus();
+      input.setSelectionRange(nextPosition, nextPosition);
+      closeEmojiSuggestions();
+    }
+
+    function closeEmojiSuggestions() {
+      emojiSuggestionsEl.hidden = true;
+      emojiSuggestionsEl.replaceChildren();
+      activeEmojiMatch = null;
+      selectedEmojiIndex = 0;
+    }
+
+    function expandEmojiShortcodes(value) {
+      return emojiShortcodes.reduce(
+        (result, entry) => result.replaceAll(`:${entry.code}:`, entry.emoji).replaceAll(`:${entry.code}`, entry.emoji),
+        value
+      );
     }
   </script>
 </body>
