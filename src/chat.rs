@@ -10,7 +10,10 @@ use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
-use crate::{auth::AppState, store::StoredMessage};
+use crate::{
+    auth::AppState,
+    store::{ReadReceipt, StoredMessage},
+};
 
 const MAX_MESSAGE_LEN: usize = 2_000;
 
@@ -31,6 +34,12 @@ pub enum ServerEvent {
     Typing { from: String, is_typing: bool },
     #[serde(rename = "presence")]
     Presence { username: String, online: bool },
+    #[serde(rename = "read")]
+    Read {
+        id: i64,
+        by: String,
+        read_at: String,
+    },
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -39,6 +48,7 @@ pub struct ChatMessage {
     from: String,
     body: String,
     created_at: String,
+    read_at: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -52,6 +62,8 @@ enum ClientEvent {
     DeleteForEveryone { id: i64 },
     #[serde(rename = "typing")]
     Typing { is_typing: bool },
+    #[serde(rename = "read")]
+    Read { id: i64 },
 }
 
 pub async fn websocket(
@@ -190,6 +202,13 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
                             is_typing,
                         });
                     }
+                    ClientEvent::Read { id } => {
+                        let Ok(Some(receipt)) = store.mark_message_read(&username, id).await else {
+                            continue;
+                        };
+
+                        let _ = chat_tx.send(ServerEvent::from(receipt));
+                    }
                 }
             }
             Message::Close(_) => break,
@@ -214,6 +233,17 @@ impl From<StoredMessage> for ChatMessage {
             from: message.sender,
             body: message.body,
             created_at: message.created_at,
+            read_at: message.read_at,
+        }
+    }
+}
+
+impl From<ReadReceipt> for ServerEvent {
+    fn from(receipt: ReadReceipt) -> Self {
+        Self::Read {
+            id: receipt.message_id,
+            by: receipt.username,
+            read_at: receipt.read_at,
         }
     }
 }

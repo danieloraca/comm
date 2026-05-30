@@ -47,6 +47,7 @@ impl MessageStore {
 
         ensure_encrypted_columns(&pool).await;
         ensure_hidden_messages_table(&pool).await;
+        ensure_read_receipts_table(&pool).await;
 
         Self { crypto, pool }
     }
@@ -61,7 +62,7 @@ impl MessageStore {
             r#"
             INSERT INTO messages (sender, body, body_ciphertext, body_nonce)
             VALUES (?, '', ?, ?)
-            RETURNING id, sender, body, body_ciphertext, body_nonce, created_at
+            RETURNING id, sender, body, body_ciphertext, body_nonce, created_at, NULL AS read_at
             "#,
         )
         .bind(sender)
@@ -76,12 +77,24 @@ impl MessageStore {
     pub async fn recent_messages(&self, username: &str) -> sqlx::Result<Vec<StoredMessage>> {
         let rows = sqlx::query_as::<_, MessageRow>(
             r#"
-            SELECT id, sender, body, body_ciphertext, body_nonce, created_at
+            SELECT id, sender, body, body_ciphertext, body_nonce, created_at, read_at
             FROM (
-                SELECT id, sender, body, body_ciphertext, body_nonce, created_at
+                SELECT
+                    messages.id,
+                    messages.sender,
+                    messages.body,
+                    messages.body_ciphertext,
+                    messages.body_nonce,
+                    messages.created_at,
+                    (
+                        SELECT max(read_at)
+                        FROM read_receipts
+                        WHERE message_id = messages.id
+                        AND username != messages.sender
+                    ) AS read_at
                 FROM messages
-                WHERE deleted_at IS NULL
-                AND id NOT IN (
+                WHERE messages.deleted_at IS NULL
+                AND messages.id NOT IN (
                     SELECT message_id
                     FROM hidden_messages
                     WHERE username = ?
@@ -138,6 +151,57 @@ impl MessageStore {
         Ok(result.rows_affected() > 0)
     }
 
+    pub async fn mark_message_read(
+        &self,
+        username: &str,
+        id: i64,
+    ) -> sqlx::Result<Option<ReadReceipt>> {
+        sqlx::query(
+            r#"
+            INSERT OR IGNORE INTO read_receipts (message_id, username)
+            SELECT id, ?
+            FROM messages
+            WHERE id = ?
+            AND sender != ?
+            AND deleted_at IS NULL
+            AND id NOT IN (
+                SELECT message_id
+                FROM hidden_messages
+                WHERE username = ?
+            )
+            "#,
+        )
+        .bind(username)
+        .bind(id)
+        .bind(username)
+        .bind(username)
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query_as::<_, ReadReceipt>(
+            r#"
+            SELECT read_receipts.message_id, read_receipts.username, read_receipts.read_at
+            FROM read_receipts
+            JOIN messages ON messages.id = read_receipts.message_id
+            WHERE read_receipts.message_id = ?
+            AND read_receipts.username = ?
+            AND messages.sender != ?
+            AND messages.deleted_at IS NULL
+            AND messages.id NOT IN (
+                SELECT message_id
+                FROM hidden_messages
+                WHERE username = ?
+            )
+            "#,
+        )
+        .bind(id)
+        .bind(username)
+        .bind(username)
+        .bind(username)
+        .fetch_optional(&self.pool)
+        .await
+    }
+
     async fn decrypt_row(&self, row: MessageRow) -> StoredMessage {
         let body = match (row.body_ciphertext.as_deref(), row.body_nonce.as_deref()) {
             (Some(ciphertext), Some(nonce)) => self
@@ -156,6 +220,7 @@ impl MessageStore {
             sender: row.sender,
             body,
             created_at: row.created_at,
+            read_at: row.read_at,
         }
     }
 
@@ -202,12 +267,37 @@ async fn ensure_hidden_messages_table(pool: &SqlitePool) {
     .unwrap_or_else(|error| panic!("failed to create hidden message schema: {error}"));
 }
 
+async fn ensure_read_receipts_table(pool: &SqlitePool) {
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS read_receipts (
+            message_id INTEGER NOT NULL,
+            username TEXT NOT NULL,
+            read_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+            PRIMARY KEY (message_id, username),
+            FOREIGN KEY (message_id) REFERENCES messages(id)
+        )
+        "#,
+    )
+    .execute(pool)
+    .await
+    .unwrap_or_else(|error| panic!("failed to create read receipt schema: {error}"));
+}
+
 #[derive(Debug)]
 pub struct StoredMessage {
     pub id: i64,
     pub sender: String,
     pub body: String,
     pub created_at: String,
+    pub read_at: Option<String>,
+}
+
+#[derive(Clone, Debug, FromRow)]
+pub struct ReadReceipt {
+    pub message_id: i64,
+    pub username: String,
+    pub read_at: String,
 }
 
 #[derive(Debug, FromRow)]
@@ -218,6 +308,7 @@ struct MessageRow {
     body_ciphertext: Option<Vec<u8>>,
     body_nonce: Option<Vec<u8>>,
     created_at: String,
+    read_at: Option<String>,
 }
 
 async fn ensure_encrypted_columns(pool: &SqlitePool) {

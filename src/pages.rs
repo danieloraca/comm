@@ -555,6 +555,16 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       font-size: 0.78rem;
     }
 
+    .read-status {
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+
+    .read-status[hidden] {
+      display: none;
+    }
+
     .message-bubble {
       max-width: 100%;
       padding: 8px 10px;
@@ -952,6 +962,14 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     let selectedEmojiIndex = 0;
     let privacyTapCount = 0;
     const onlineUsers = new Set();
+    const readMessageIds = new Set();
+    const readObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          markMessageRead(entry.target);
+        }
+      });
+    }, { root: messagesEl, threshold: 0.6 });
 
     themeSelect.value = localStorage.getItem(themeKey) || "system";
     applyTheme(themeSelect.value);
@@ -990,6 +1008,10 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
       if (serverEvent.type === "presence") {
         updatePresence(serverEvent.username, serverEvent.online);
+      }
+
+      if (serverEvent.type === "read") {
+        markMessageReadInUi(serverEvent.id, serverEvent.read_at);
       }
     });
 
@@ -1142,6 +1164,8 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       ) {
         privacyPasswordInput.focus();
       }
+
+      scanReadableMessages();
     });
 
     document.addEventListener("click", (event) => {
@@ -1189,6 +1213,14 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
       meta.append(from, sentAt);
+
+      if (message.from === currentUser) {
+        const readStatus = document.createElement("span");
+        readStatus.className = "read-status";
+        readStatus.textContent = "Read";
+        readStatus.hidden = !message.read_at;
+        meta.append(readStatus);
+      }
 
       const body = document.createElement("div");
       body.className = "message-bubble";
@@ -1245,13 +1277,69 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       item.append(meta, body, menu);
       messagesEl.append(item);
       messagesEl.scrollTop = messagesEl.scrollHeight;
+
+      if (message.from !== currentUser) {
+        readObserver.observe(item);
+        markMessageRead(item);
+      }
     }
 
     function removeMessage(id) {
       const item = document.querySelector(`[data-message-id="${id}"]`);
 
       if (item) {
+        readObserver.unobserve(item);
+        readMessageIds.delete(Number(id));
         item.remove();
+      }
+    }
+
+    function markMessageRead(item) {
+      if (
+        item.classList.contains("own")
+        || !privacyScreen.hidden
+        || document.visibilityState !== "visible"
+        || socket.readyState !== WebSocket.OPEN
+        || !messageIsVisible(item)
+      ) {
+        return;
+      }
+
+      const id = Number(item.dataset.messageId);
+      if (!Number.isFinite(id) || readMessageIds.has(id)) {
+        return;
+      }
+
+      readMessageIds.add(id);
+      readObserver.unobserve(item);
+      socket.send(JSON.stringify({ type: "read", id }));
+    }
+
+    function messageIsVisible(item) {
+      const itemRect = item.getBoundingClientRect();
+      const messagesRect = messagesEl.getBoundingClientRect();
+      return itemRect.bottom > messagesRect.top && itemRect.top < messagesRect.bottom;
+    }
+
+    function scanReadableMessages() {
+      if (!privacyScreen.hidden || document.visibilityState !== "visible") {
+        return;
+      }
+
+      document.querySelectorAll(".message:not(.own)").forEach(markMessageRead);
+    }
+
+    function markMessageReadInUi(id, readAt) {
+      const item = document.querySelector(`[data-message-id="${id}"]`);
+      const readStatus = item?.querySelector(".read-status");
+
+      if (!readStatus) {
+        return;
+      }
+
+      readStatus.hidden = false;
+      if (readAt) {
+        readStatus.title = `Read ${new Date(readAt).toLocaleString()}`;
       }
     }
 
@@ -1321,6 +1409,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       privacyScreen.hidden = true;
       privacyContent.hidden = true;
       input.focus();
+      scanReadableMessages();
     }
 
     function showPrivacyPrompt() {
