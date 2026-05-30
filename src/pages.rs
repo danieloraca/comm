@@ -659,6 +659,9 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       <div class="emoji-bar" aria-label="Emoji shortcuts">
         <button class="emoji-button" type="button" data-emoji="🙂" title="Smile">🙂</button>
         <button class="emoji-button" type="button" data-emoji="❤️" title="Heart">❤️</button>
+        <button class="emoji-button" type="button" data-emoji="🤗" title="Hug">🤗</button>
+        <button class="emoji-button" type="button" data-emoji="💛" title="Yellow heart">💛</button>
+        <button class="emoji-button" type="button" data-emoji="😂" title="Laugh">😂</button>
       </div>
       <div class="input-wrap">
         <div class="emoji-suggestions" id="emoji-suggestions" role="listbox" hidden></div>
@@ -681,7 +684,11 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     const socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
     const emojiShortcodes = [
       { code: "heart", emoji: "❤️" },
+      { code: "heart-yellow", emoji: "💛" },
+      { code: "hug", emoji: "🤗" },
+      { code: "lol", emoji: "😂" },
       { code: "smile", emoji: "🙂" },
+      { code: "yellow-heart", emoji: "💛" },
     ];
     let typingTimeoutId = null;
     let typingSent = false;
