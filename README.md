@@ -41,7 +41,8 @@ Current tested devices:
    python3 -m http.server 8787 --bind 100.124.77.92
    ```
 
-5. Opened this URL on the iPhone:
+5. 
+6. ed this URL on the iPhone:
 
    ```text
    http://100.124.77.92:8787

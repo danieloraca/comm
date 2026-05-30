@@ -267,7 +267,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       overflow: auto;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 10px;
       padding: 12px;
       border: 1px solid #d5dde2;
       border-radius: 6px;
@@ -278,27 +278,47 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       position: relative;
       width: fit-content;
       max-width: min(82%, 520px);
-      padding: 8px 10px;
-      border-radius: 7px;
-      background: #e6eef4;
+      display: grid;
+      gap: 3px;
+      justify-items: start;
+      align-self: flex-start;
       overflow-wrap: anywhere;
       cursor: pointer;
     }
 
     .message.own {
+      justify-items: end;
       align-self: flex-end;
-      background: #d6e9f7;
     }
 
-    .message strong {
+    .message-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 2px;
+      color: #53636d;
+      font-size: 0.72rem;
+    }
+
+    .message-meta strong {
       font-size: 0.78rem;
     }
 
+    .message-bubble {
+      max-width: 100%;
+      padding: 8px 10px;
+      border-radius: 7px;
+      background: #e6eef4;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .message.own .message-bubble {
+      background: #d6e9f7;
+    }
+
     .message time {
-      display: block;
-      margin-top: 4px;
-      font-size: 0.72rem;
-      color: #53636d;
+      color: inherit;
     }
 
     .message-menu {
@@ -360,15 +380,18 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       gap: 6px;
     }
 
-    input {
+    textarea {
       min-width: 0;
       min-height: 44px;
+      max-height: 140px;
       padding: 10px 12px;
       border: 1px solid #bac5cc;
       border-radius: 6px;
       font: inherit;
       background: #ffffff;
       color: #192024;
+      resize: none;
+      overflow-y: auto;
     }
 
     button {
@@ -398,7 +421,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       min-width: 0;
     }
 
-    .input-wrap input {
+    .input-wrap textarea {
       width: 100%;
     }
 
@@ -440,7 +463,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       background: #edf3f7;
     }
 
-    input:focus,
+    textarea:focus,
     button:focus {
       outline: 3px solid #9ac2ff;
       outline-offset: 1px;
@@ -472,16 +495,21 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         background: #11181c;
       }
 
-      .message {
+      .message-bubble {
         background: #253641;
       }
 
       .message.own {
-        background: #234a66;
+        background: transparent;
       }
 
+      .message-meta,
       .message time {
         color: #afbdc5;
+      }
+
+      .message.own .message-bubble {
+        background: #234a66;
       }
 
       .message-menu {
@@ -508,7 +536,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         background: #311d1d;
       }
 
-      input {
+      textarea {
         border-color: #48616f;
         background: #11181c;
         color: #edf3f7;
@@ -589,7 +617,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       </div>
       <div class="input-wrap">
         <div class="emoji-suggestions" id="emoji-suggestions" role="listbox" hidden></div>
-        <input id="message" name="message" autocomplete="off" maxlength="2000" required>
+        <textarea id="message" name="message" autocomplete="off" maxlength="2000" rows="1" required></textarea>
       </div>
       <button type="submit">Send</button>
     </form>
@@ -615,6 +643,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
     socket.addEventListener("open", () => {
       statusEl.textContent = `Connected as ${currentUser}`;
+      resizeComposer();
       input.focus();
     });
 
@@ -652,11 +681,15 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
       socket.send(JSON.stringify({ type: "message", body }));
       input.value = "";
+      resizeComposer();
       sendTyping(false);
     });
 
     input.addEventListener("input", () => {
+      resizeComposer();
+
       if (!input.value.trim()) {
+        closeEmojiSuggestions();
         sendTyping(false);
         return;
       }
@@ -672,6 +705,12 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     input.addEventListener("click", updateEmojiSuggestions);
 
     input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey && emojiSuggestionsEl.hidden) {
+        event.preventDefault();
+        form.requestSubmit();
+        return;
+      }
+
       if (emojiSuggestionsEl.hidden) {
         return;
       }
@@ -700,6 +739,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     document.querySelectorAll("[data-emoji]").forEach((button) => {
       button.addEventListener("click", () => {
         insertAtCursor(button.dataset.emoji);
+        resizeComposer();
         sendTyping(true);
         window.clearTimeout(typingTimeoutId);
         typingTimeoutId = window.setTimeout(() => sendTyping(false), 1500);
@@ -739,11 +779,11 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       item.className = message.from === currentUser ? "message own" : "message";
       item.dataset.messageId = message.id;
 
+      const meta = document.createElement("div");
+      meta.className = "message-meta";
+
       const from = document.createElement("strong");
       from.textContent = message.from;
-
-      const body = document.createElement("span");
-      body.textContent = message.body;
 
       const sentAt = document.createElement("time");
       const date = new Date(message.created_at);
@@ -751,6 +791,12 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       sentAt.textContent = Number.isNaN(date.getTime())
         ? message.created_at
         : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+      meta.append(from, sentAt);
+
+      const body = document.createElement("div");
+      body.className = "message-bubble";
+      body.textContent = message.body;
 
       const menu = document.createElement("div");
       menu.className = "message-menu";
@@ -800,7 +846,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         menu.hidden = !willOpen;
       });
 
-      item.append(from, body, sentAt, menu);
+      item.append(meta, body, menu);
       messagesEl.append(item);
       messagesEl.scrollTop = messagesEl.scrollHeight;
     }
@@ -837,6 +883,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       const nextPosition = start + value.length;
       input.focus();
       input.setSelectionRange(nextPosition, nextPosition);
+      resizeComposer();
     }
 
     function updateEmojiSuggestions() {
@@ -918,6 +965,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       const nextPosition = activeEmojiMatch.start + entry.emoji.length;
       input.focus();
       input.setSelectionRange(nextPosition, nextPosition);
+      resizeComposer();
       closeEmojiSuggestions();
     }
 
@@ -933,6 +981,11 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         (result, entry) => result.replaceAll(`:${entry.code}:`, entry.emoji).replaceAll(`:${entry.code}`, entry.emoji),
         value
       );
+    }
+
+    function resizeComposer() {
+      input.style.height = "auto";
+      input.style.height = `${Math.min(input.scrollHeight, 140)}px`;
     }
   </script>
 </body>
