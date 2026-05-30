@@ -89,7 +89,7 @@ To change a password, generate a new hash, replace that user's `password_hash`, 
 - Typing indicators and online presence are transient WebSocket events and are not stored.
 - The online dot is based on active WebSocket connections.
 - Read receipts are stored locally and are sent only after an incoming message is visible while the chat is unlocked.
-- Emoji toolbar and shortcodes are supported for `:smile`, `:heart`, `:hug`, `:heart-yellow`, `:yellow-heart`, and `:lol`.
+- Emoji toolbar and shortcodes are supported for common reactions such as `:smile`, `:heart`, `:hug`, `:lol`, `:punch`, `:face-punch`, `:kiss`, `:smirk`, `:eyeroll`, `:cry`, `:angry`, `:fire`, `:yes`, `:no`, `:eyes`, `:facepalm`, `:shrug`, `:middle-finger`, `:finger`, and `:fu`.
 - The message composer supports multiline input with Shift+Enter; Enter sends.
 - Per-user appearance preferences are stored in the browser, including `System`, `Light`, `Dark`, `Dim`, and `Red` themes plus text size controls from 90% to 130%.
 

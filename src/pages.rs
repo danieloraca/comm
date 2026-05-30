@@ -924,6 +924,19 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         <button class="emoji-button" type="button" data-emoji="🤗" title="Hug">🤗</button>
         <button class="emoji-button" type="button" data-emoji="💛" title="Yellow heart">💛</button>
         <button class="emoji-button" type="button" data-emoji="😂" title="Laugh">😂</button>
+        <button class="emoji-button" type="button" data-emoji="🖕" title="Middle finger">🖕</button>
+        <button class="emoji-button" type="button" data-emoji="👊" title="Punch">👊</button>
+        <button class="emoji-button" type="button" data-emoji="😘" title="Kiss">😘</button>
+        <button class="emoji-button" type="button" data-emoji="😏" title="Smirk">😏</button>
+        <button class="emoji-button" type="button" data-emoji="🙄" title="Eye roll">🙄</button>
+        <button class="emoji-button" type="button" data-emoji="😭" title="Cry">😭</button>
+        <button class="emoji-button" type="button" data-emoji="😡" title="Angry">😡</button>
+        <button class="emoji-button" type="button" data-emoji="🔥" title="Fire">🔥</button>
+        <button class="emoji-button" type="button" data-emoji="✅" title="Yes">✅</button>
+        <button class="emoji-button" type="button" data-emoji="❌" title="No">❌</button>
+        <button class="emoji-button" type="button" data-emoji="👀" title="Eyes">👀</button>
+        <button class="emoji-button" type="button" data-emoji="🤦" title="Facepalm">🤦</button>
+        <button class="emoji-button" type="button" data-emoji="🤷" title="Shrug">🤷</button>
       </div>
       <div class="input-wrap">
         <div class="emoji-suggestions" id="emoji-suggestions" role="listbox" hidden></div>
@@ -976,11 +989,27 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     const fontSizeMax = 130;
     const fontSizeStep = 10;
     const emojiShortcodes = [
+      { code: "angry", emoji: "😡" },
+      { code: "cry", emoji: "😭" },
+      { code: "eyeroll", emoji: "🙄" },
+      { code: "eyes", emoji: "👀" },
+      { code: "face-punch", emoji: "👊" },
+      { code: "facepalm", emoji: "🤦" },
       { code: "heart", emoji: "❤️" },
       { code: "heart-yellow", emoji: "💛" },
       { code: "hug", emoji: "🤗" },
+      { code: "finger", emoji: "🖕" },
+      { code: "fire", emoji: "🔥" },
+      { code: "fu", emoji: "🖕" },
+      { code: "kiss", emoji: "😘" },
       { code: "lol", emoji: "😂" },
+      { code: "middle-finger", emoji: "🖕" },
+      { code: "no", emoji: "❌" },
+      { code: "punch", emoji: "👊" },
+      { code: "shrug", emoji: "🤷" },
       { code: "smile", emoji: "🙂" },
+      { code: "smirk", emoji: "😏" },
+      { code: "yes", emoji: "✅" },
       { code: "yellow-heart", emoji: "💛" },
     ];
     let typingTimeoutId = null;
