@@ -394,6 +394,10 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       text-align: center;
     }
 
+    .privacy-content[hidden] {
+      display: none;
+    }
+
     .privacy-content h2 {
       margin: 0;
       color: #192024;
@@ -878,7 +882,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       <button type="submit">Send</button>
     </form>
     <section class="privacy-screen" id="privacy-screen" hidden aria-live="polite">
-      <div class="privacy-content">
+      <div class="privacy-content" id="privacy-content" hidden>
         <h2>Chat locked</h2>
         <p>Enter your password to reveal this chat.</p>
         <form class="privacy-form" id="privacy-form">
@@ -902,6 +906,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     const settingsPanel = document.querySelector("#settings-panel");
     const privacyModeInput = document.querySelector("#privacy-mode");
     const privacyScreen = document.querySelector("#privacy-screen");
+    const privacyContent = document.querySelector("#privacy-content");
     const privacyForm = document.querySelector("#privacy-form");
     const privacyPasswordInput = document.querySelector("#privacy-password");
     const privacyErrorEl = document.querySelector("#privacy-error");
@@ -923,6 +928,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     let typingSent = false;
     let activeEmojiMatch = null;
     let selectedEmojiIndex = 0;
+    let privacyTapCount = 0;
     const onlineUsers = new Set();
 
     privacyModeInput.checked = localStorage.getItem(privacyModeKey) === "true";
@@ -1009,6 +1015,22 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       localStorage.setItem(privacyModeKey, String(privacyModeInput.checked));
     });
 
+    privacyScreen.addEventListener("click", (event) => {
+      if (privacyContent.hidden) {
+        privacyTapCount += 1;
+
+        if (privacyTapCount >= 3) {
+          showPrivacyPrompt();
+        }
+
+        return;
+      }
+
+      if (!event.target.closest(".privacy-content")) {
+        privacyPasswordInput.focus();
+      }
+    });
+
     privacyForm.addEventListener("submit", verifyPrivacyPassword);
 
     input.addEventListener("keydown", (event) => {
@@ -1075,7 +1097,11 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         lockPrivacyScreen();
       }
 
-      if (document.visibilityState === "visible" && !privacyScreen.hidden) {
+      if (
+        document.visibilityState === "visible"
+        && !privacyScreen.hidden
+        && !privacyContent.hidden
+      ) {
         privacyPasswordInput.focus();
       }
     });
@@ -1209,16 +1235,21 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       sendTyping(false);
       privacyForm.reset();
       privacyErrorEl.textContent = "";
+      privacyContent.hidden = true;
+      privacyTapCount = 0;
       privacyScreen.hidden = false;
-
-      if (document.visibilityState === "visible") {
-        privacyPasswordInput.focus();
-      }
     }
 
     function unlockPrivacyScreen() {
       privacyScreen.hidden = true;
+      privacyContent.hidden = true;
       input.focus();
+    }
+
+    function showPrivacyPrompt() {
+      privacyTapCount = 0;
+      privacyContent.hidden = false;
+      privacyPasswordInput.focus();
     }
 
     async function verifyPrivacyPassword(event) {
