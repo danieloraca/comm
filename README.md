@@ -1,56 +1,55 @@
 # Private Two-Party Chat
 
-This project is intended to become a very small Rust chat app for two users. The server runs on main user's laptop, stores the message history locally, and lets both parties send and receive messages after logging in.
+This project is a small Rust chat app for two endpoints. The server runs on a trusted host, stores message history locally, and lets both parties send and receive messages after logging in.
 
 ## Goal
 
-- Run the server on main user's MacBook.
+- Run the server on the trusted host machine.
 - Allow exactly two users to log in with usernames and passwords.
 - Let both users exchange messages in real time.
-- Store message history only on main user's computer.
+- Store message history only on the trusted host.
 - Store passwords as hashes, not plaintext.
-- Store messages encrypted at rest in a later step.
+- Store messages encrypted at rest.
 - Avoid exposing the app directly to the public internet.
 
 ## Connection Approach
 
 The first networking approach is Tailscale.
 
-Tailscale creates a private network between trusted devices. This means the Rust app can listen on main user's laptop and be reached from another trusted device without opening a public router port.
+Tailscale creates a private network between trusted devices. This means the Rust app can listen on the trusted host and be reached from another trusted device without opening a public router port.
 
-Current tested devices:
+Example device layout:
 
 | Device                 | Tailscale IP | OS |
 |------------------------| --- | --- |
-| `mainuser-macbook-pro` | `100.124.77.92` | macOS |
-| `iphone-15`            | `100.107.209.117` | iOS |
+| `chat-server`          | `<server-tailscale-ip>` | macOS/Linux |
+| `chat-client`          | `<client-tailscale-ip>` | iOS/Windows/macOS/Linux |
 
 ## Completed Connectivity Test
 
-1. Installed and connected Tailscale on main user's MacBook.
-2. Installed and connected Tailscale on the iPhone.
+1. Install and connect Tailscale on the server device.
+2. Install and connect Tailscale on the client device.
 3. Confirmed both devices appeared in:
 
    ```bash
    tailscale status
    ```
 
-4. Started a temporary HTTP server on the MacBook:
+4. Start a temporary HTTP server on the server device:
 
    ```bash
-   python3 -m http.server 8787 --bind 100.124.77.92
+   python3 -m http.server 8787 --bind <server-tailscale-ip>
    ```
 
-5. 
-6. ed this URL on the iPhone:
+5. Open this URL from the client device:
 
    ```text
-   http://100.124.77.92:8787
+   http://<server-tailscale-ip>:8787
    ```
 
-6. Confirmed the iPhone could see the `/Users/mainuser/User/comm` directory listing.
+6. Confirm that the client device can reach the temporary server.
 
-This proves that another device can reach a service running on the laptop through Tailscale.
+This proves that another device can reach a service running on the server through Tailscale.
 
 ## Planned First Rust Prototype
 
@@ -82,14 +81,7 @@ Current behavior:
 - Typing indicators are sent as transient WebSocket events and are not stored.
 - Online status is based on active WebSocket connections and is not stored.
 
-Local test login credentials:
-
-| Username | Password |
-|----------|----------|
-| `u1`     | `u1p`    |
-| `u2`     | `u2p`    |
-
-The app does not store these passwords in Rust code. It reads Argon2id password hashes from `users.toml`, which is ignored by git.
+The app does not store passwords in Rust code. It reads Argon2id password hashes from `users.toml`, which is ignored by git.
 
 To create a password hash:
 
@@ -101,11 +93,11 @@ Then put the generated hash into `users.toml`:
 
 ```toml
 [[user]]
-username = "u1"
+username = "alice"
 password_hash = "$argon2id$..."
 
 [[user]]
-username = "u2"
+username = "bob"
 password_hash = "$argon2id$..."
 ```
 
@@ -123,10 +115,10 @@ Planned behavior:
 - `Delete for everyone` sets `messages.deleted_at`, is only allowed for the sender, and removes the message for all clients.
 - The green online dot turns on when the other user has at least one active chat tab connected.
 - Presence changes are sent as transient WebSocket events. There is no polling and no database row for online status.
-- Server binds to the MacBook Tailscale IP:
+- Server binds to the configured Tailscale IP:
 
   ```text
-  100.124.77.92:8787
+  <server-tailscale-ip>:8787
   ```
 
 ## Security Notes
