@@ -736,7 +736,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     }
 
     @media (prefers-color-scheme: dark) {
-      :root:not([data-theme="light"]):not([data-theme="dim"]) {
+      :root:not([data-theme="light"]):not([data-theme="dim"]):not([data-theme="red"]) {
         color-scheme: dark;
         --page-bg: #11181c;
         --app-bg: #182229;
@@ -810,6 +810,32 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       --privacy-bg: #20252a;
     }
 
+    :root[data-theme="red"] {
+      color-scheme: dark;
+      --page-bg: #2a0508;
+      --app-bg: #3b090d;
+      --surface-bg: #240407;
+      --elevated-bg: #4b0d13;
+      --text: #fff5f5;
+      --muted: #ffc0c0;
+      --border: #8a1f29;
+      --control-border: #b8323f;
+      --menu-border: #b8323f;
+      --shadow: 0 12px 30px rgba(72, 0, 8, 0.28);
+      --menu-shadow: 0 8px 18px rgba(0, 0, 0, 0.32);
+      --accent: #ff3347;
+      --accent-text: #ffffff;
+      --accent-soft: #ff8793;
+      --presence-off: #b77a80;
+      --presence-on: #51d27a;
+      --message-bg: #66151e;
+      --own-message-bg: #d7192f;
+      --hover-bg: #6f1721;
+      --danger: #ffe0e0;
+      --danger-bg: #7a101d;
+      --privacy-bg: #2a0508;
+    }
+
     @media (max-width: 520px) {
       body {
         padding: 0;
@@ -861,6 +887,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
               <option value="light">Light</option>
               <option value="dark">Dark</option>
               <option value="dim">Dim</option>
+              <option value="red">Red</option>
             </select>
           </label>
           <div class="font-size-control">

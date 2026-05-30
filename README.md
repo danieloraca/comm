@@ -91,7 +91,7 @@ To change a password, generate a new hash, replace that user's `password_hash`, 
 - Read receipts are stored locally and are sent only after an incoming message is visible while the chat is unlocked.
 - Emoji toolbar and shortcodes are supported for `:smile`, `:heart`, `:hug`, `:heart-yellow`, `:yellow-heart`, and `:lol`.
 - The message composer supports multiline input with Shift+Enter; Enter sends.
-- Per-user appearance preferences are stored in the browser, including `System`, `Light`, `Dark`, and `Dim` themes plus text size controls from 90% to 130%.
+- Per-user appearance preferences are stored in the browser, including `System`, `Light`, `Dark`, `Dim`, and `Red` themes plus text size controls from 90% to 130%.
 
 ## Privacy Mode
 
