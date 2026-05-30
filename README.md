@@ -73,6 +73,8 @@ Current behavior:
 - `GET /chat` shows the authenticated chat UI after login.
 - `POST /logout` removes the in-memory session and expires the session cookie.
 - `GET /ws` accepts authenticated WebSocket connections.
+- The chat header includes a Settings menu with an optional best-effort logout when the tab closes.
+- Privacy Mode can lock the chat when the tab or browser window loses focus and require the current user's password to reveal it.
 - Messages sent over WebSocket are broadcast to all connected authenticated clients.
 - Messages are stored locally in SQLite.
 - New WebSocket clients receive recent message history after connecting.
@@ -127,6 +129,8 @@ Planned behavior:
 - Do not expose the Rust app directly to the public internet.
 - Tailscale protects network transport between devices, but the app should still implement real authentication.
 - Login attempts are rate-limited in memory; this resets when the server restarts.
+- Privacy Mode hides message content in the browser UI and requires password verification before revealing it again, but it does not remove the authenticated session.
+- Browser close-tab logout uses `sendBeacon` when available. It is useful for convenience, but it should not be treated as a guaranteed security boundary.
 - Message bodies are encrypted with a local key before being stored in SQLite.
 - If someone copies only `comm.sqlite3`, they should not be able to read message bodies.
 - If someone copies both `comm.sqlite3` and `message.key`, they can decrypt message bodies.

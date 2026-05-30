@@ -8,7 +8,7 @@ use axum::{
     Form,
     extract::State,
     http::{
-        HeaderMap, HeaderValue,
+        HeaderMap, HeaderValue, StatusCode,
         header::{COOKIE, SET_COOKIE},
     },
     response::{IntoResponse, Redirect, Response},
@@ -51,6 +51,11 @@ impl AppState {
 #[derive(Deserialize)]
 pub struct LoginForm {
     username: String,
+    password: String,
+}
+
+#[derive(Deserialize)]
+pub struct VerifyPasswordForm {
     password: String,
 }
 
@@ -103,6 +108,28 @@ pub async fn logout(State(state): State<AppState>, headers: HeaderMap) -> Respon
         .headers_mut()
         .insert(SET_COOKIE, expired_session_cookie());
     response
+}
+
+pub async fn verify_password(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Form(form): Form<VerifyPasswordForm>,
+) -> StatusCode {
+    let Some(username) = state.authenticated_user(&headers) else {
+        return StatusCode::UNAUTHORIZED;
+    };
+
+    if login_is_rate_limited(&state, &username) {
+        return StatusCode::TOO_MANY_REQUESTS;
+    }
+
+    if !state.users.verify_credentials(&username, &form.password) {
+        record_failed_login(&state, &username);
+        return StatusCode::UNAUTHORIZED;
+    }
+
+    clear_failed_logins(&state, &username);
+    StatusCode::NO_CONTENT
 }
 
 impl AppState {

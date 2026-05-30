@@ -216,6 +216,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       height: calc(100dvh - 36px);
       min-height: 0;
       margin: 0 auto;
+      position: relative;
       display: grid;
       grid-template-rows: auto minmax(0, 1fr) auto auto;
       gap: 14px;
@@ -242,6 +243,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       align-items: center;
       justify-content: space-between;
       gap: 12px;
+      position: relative;
     }
 
     .title {
@@ -286,12 +288,150 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       display: block;
     }
 
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .settings-button {
+      min-height: 36px;
+      padding: 0 12px;
+      background: transparent;
+      color: #1d5f8f;
+      border: 1px solid #9fb5c3;
+    }
+
     .logout-button {
       min-height: 36px;
       padding: 0 12px;
       background: transparent;
       color: #1d5f8f;
       border: 1px solid #9fb5c3;
+    }
+
+    .settings-panel {
+      position: absolute;
+      z-index: 4;
+      top: calc(100% + 8px);
+      right: 0;
+      width: min(280px, 100%);
+      display: grid;
+      gap: 12px;
+      padding: 12px;
+      border: 1px solid #c7d1d8;
+      border-radius: 6px;
+      background: #ffffff;
+      box-shadow: 0 8px 18px rgba(25, 32, 36, 0.14);
+    }
+
+    .settings-panel[hidden] {
+      display: none;
+    }
+
+    .settings-title {
+      margin: 0;
+      color: #192024;
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+
+    .setting-row {
+      display: flex;
+      align-items: start;
+      gap: 10px;
+      color: #192024;
+      font-size: 0.88rem;
+      line-height: 1.35;
+    }
+
+    .setting-row input {
+      flex: 0 0 auto;
+      width: 18px;
+      height: 18px;
+      margin-top: 1px;
+      accent-color: #1d5f8f;
+    }
+
+    .settings-section {
+      display: grid;
+      gap: 8px;
+    }
+
+    .settings-section + .settings-section {
+      padding-top: 10px;
+      border-top: 1px solid #d5dde2;
+    }
+
+    .settings-heading {
+      margin: 0;
+      color: #53636d;
+      font-size: 0.76rem;
+      font-weight: 800;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    .privacy-screen {
+      position: absolute;
+      z-index: 10;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      border-radius: inherit;
+      background: #eef2f4;
+    }
+
+    .privacy-screen[hidden] {
+      display: none;
+    }
+
+    .privacy-content {
+      width: min(100%, 320px);
+      display: grid;
+      gap: 12px;
+      text-align: center;
+    }
+
+    .privacy-content h2 {
+      margin: 0;
+      color: #192024;
+      font-size: 1.35rem;
+      line-height: 1.2;
+    }
+
+    .privacy-content p {
+      color: #53636d;
+      font-size: 0.92rem;
+    }
+
+    .privacy-form {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    .privacy-form input {
+      width: 100%;
+      min-height: 44px;
+      padding: 10px 12px;
+      border: 1px solid #bac5cc;
+      border-radius: 6px;
+      font: inherit;
+      background: #ffffff;
+      color: #192024;
+    }
+
+    .privacy-error {
+      min-height: 18px;
+      color: #8a1f1f;
+      font-size: 0.86rem;
+      font-weight: 650;
+    }
+
+    .privacy-error:empty {
+      display: none;
     }
 
     .messages {
@@ -499,6 +639,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     }
 
     textarea:focus,
+    .privacy-form input:focus,
     button:focus {
       outline: 3px solid #9ac2ff;
       outline-offset: 1px;
@@ -557,6 +698,47 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         box-shadow: none;
       }
 
+      .settings-panel {
+        border-color: #48616f;
+        background: #182229;
+        box-shadow: none;
+      }
+
+      .settings-title,
+      .setting-row {
+        color: #edf3f7;
+      }
+
+      .settings-section + .settings-section {
+        border-top-color: #32434d;
+      }
+
+      .settings-heading {
+        color: #afbdc5;
+      }
+
+      .privacy-screen {
+        background: #11181c;
+      }
+
+      .privacy-content h2 {
+        color: #edf3f7;
+      }
+
+      .privacy-content p {
+        color: #afbdc5;
+      }
+
+      .privacy-form input {
+        border-color: #48616f;
+        background: #11181c;
+        color: #edf3f7;
+      }
+
+      .privacy-error {
+        color: #ffd4d4;
+      }
+
       .message-action {
         color: #edf3f7;
       }
@@ -613,6 +795,12 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         color: #8bc7f0;
         border-color: #48616f;
       }
+
+      .settings-button {
+        background: transparent;
+        color: #8bc7f0;
+        border-color: #48616f;
+      }
     }
 
     @media (max-width: 520px) {
@@ -649,9 +837,29 @@ const CHAT_PAGE: &str = r##"<!doctype html>
           <span id="presence-label">No one else online</span>
         </p>
       </div>
-      <form class="logout-form" method="post" action="/logout">
-        <button class="logout-button" type="submit">Log out</button>
-      </form>
+      <div class="header-actions">
+        <button class="settings-button" id="settings-button" type="button" aria-expanded="false" aria-controls="settings-panel">Settings</button>
+        <form class="logout-form" method="post" action="/logout">
+          <button class="logout-button" type="submit">Log out</button>
+        </form>
+      </div>
+      <div class="settings-panel" id="settings-panel" hidden>
+        <h2 class="settings-title">Settings</h2>
+        <div class="settings-section">
+          <h3 class="settings-heading">Privacy Mode</h3>
+          <label class="setting-row">
+            <input id="privacy-mode" type="checkbox">
+            <span>Require password when this tab loses focus</span>
+          </label>
+        </div>
+        <div class="settings-section">
+          <h3 class="settings-heading">Session</h3>
+          <label class="setting-row">
+            <input id="logout-on-close" type="checkbox">
+            <span>Log out when this tab closes</span>
+          </label>
+        </div>
+      </div>
     </header>
     <section class="messages" id="messages" aria-live="polite"></section>
     <p class="typing" id="typing" aria-live="polite"></p>
@@ -669,6 +877,17 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       </div>
       <button type="submit">Send</button>
     </form>
+    <section class="privacy-screen" id="privacy-screen" hidden aria-live="polite">
+      <div class="privacy-content">
+        <h2>Chat locked</h2>
+        <p>Enter your password to reveal this chat.</p>
+        <form class="privacy-form" id="privacy-form">
+          <input id="privacy-password" name="password" type="password" autocomplete="current-password" required>
+          <p class="privacy-error" id="privacy-error" role="alert"></p>
+          <button id="privacy-reveal" type="submit">Reveal chat</button>
+        </form>
+      </div>
+    </section>
   </main>
   <script>
     const currentUser = "{{username}}";
@@ -679,9 +898,19 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     const typingEl = document.querySelector("#typing");
     const form = document.querySelector("#chat-form");
     const input = document.querySelector("#message");
+    const settingsButton = document.querySelector("#settings-button");
+    const settingsPanel = document.querySelector("#settings-panel");
+    const privacyModeInput = document.querySelector("#privacy-mode");
+    const privacyScreen = document.querySelector("#privacy-screen");
+    const privacyForm = document.querySelector("#privacy-form");
+    const privacyPasswordInput = document.querySelector("#privacy-password");
+    const privacyErrorEl = document.querySelector("#privacy-error");
+    const logoutOnCloseInput = document.querySelector("#logout-on-close");
     const emojiSuggestionsEl = document.querySelector("#emoji-suggestions");
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
+    const privacyModeKey = `comm.privacyMode.${currentUser}`;
+    const logoutOnCloseKey = `comm.logoutOnClose.${currentUser}`;
     const emojiShortcodes = [
       { code: "heart", emoji: "❤️" },
       { code: "heart-yellow", emoji: "💛" },
@@ -695,6 +924,9 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     let activeEmojiMatch = null;
     let selectedEmojiIndex = 0;
     const onlineUsers = new Set();
+
+    privacyModeInput.checked = localStorage.getItem(privacyModeKey) === "true";
+    logoutOnCloseInput.checked = localStorage.getItem(logoutOnCloseKey) === "true";
 
     socket.addEventListener("open", () => {
       statusEl.textContent = `Connected as ${currentUser}`;
@@ -763,6 +995,22 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
     input.addEventListener("click", updateEmojiSuggestions);
 
+    settingsButton.addEventListener("click", () => {
+      const willOpen = settingsPanel.hidden;
+      settingsPanel.hidden = !willOpen;
+      settingsButton.setAttribute("aria-expanded", String(willOpen));
+    });
+
+    logoutOnCloseInput.addEventListener("change", () => {
+      localStorage.setItem(logoutOnCloseKey, String(logoutOnCloseInput.checked));
+    });
+
+    privacyModeInput.addEventListener("change", () => {
+      localStorage.setItem(privacyModeKey, String(privacyModeInput.checked));
+    });
+
+    privacyForm.addEventListener("submit", verifyPrivacyPassword);
+
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter" && !event.shiftKey && emojiSuggestionsEl.hidden) {
         event.preventDefault();
@@ -810,9 +1058,33 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       if (socket.readyState === WebSocket.OPEN && typingSent) {
         socket.send(JSON.stringify({ type: "typing", is_typing: false }));
       }
+
+      if (logoutOnCloseInput.checked) {
+        logoutFromClosingTab();
+      }
+    });
+
+    window.addEventListener("blur", () => {
+      if (privacyModeInput.checked) {
+        lockPrivacyScreen();
+      }
+    });
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden" && privacyModeInput.checked) {
+        lockPrivacyScreen();
+      }
+
+      if (document.visibilityState === "visible" && !privacyScreen.hidden) {
+        privacyPasswordInput.focus();
+      }
     });
 
     document.addEventListener("click", (event) => {
+      if (!event.target.closest("header")) {
+        closeSettings();
+      }
+
       if (!event.target.closest(".message")) {
         closeMessageMenus();
       }
@@ -824,6 +1096,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
+        closeSettings();
         closeMessageMenus();
         closeEmojiSuggestions();
       }
@@ -921,6 +1194,74 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     function closeMessageMenus() {
       document.querySelectorAll(".message-menu").forEach((menu) => {
         menu.hidden = true;
+      });
+    }
+
+    function closeSettings() {
+      settingsPanel.hidden = true;
+      settingsButton.setAttribute("aria-expanded", "false");
+    }
+
+    function lockPrivacyScreen() {
+      closeSettings();
+      closeMessageMenus();
+      closeEmojiSuggestions();
+      sendTyping(false);
+      privacyForm.reset();
+      privacyErrorEl.textContent = "";
+      privacyScreen.hidden = false;
+
+      if (document.visibilityState === "visible") {
+        privacyPasswordInput.focus();
+      }
+    }
+
+    function unlockPrivacyScreen() {
+      privacyScreen.hidden = true;
+      input.focus();
+    }
+
+    async function verifyPrivacyPassword(event) {
+      event.preventDefault();
+      privacyErrorEl.textContent = "";
+
+      let response;
+      try {
+        response = await fetch("/verify-password", {
+          method: "POST",
+          body: new URLSearchParams(new FormData(privacyForm)),
+          credentials: "same-origin",
+        });
+      } catch {
+        privacyErrorEl.textContent = "Could not verify password. Check the connection.";
+        return;
+      }
+
+      if (response.status === 204) {
+        privacyForm.reset();
+        unlockPrivacyScreen();
+        return;
+      }
+
+      if (response.status === 429) {
+        privacyErrorEl.textContent = "Too many failed attempts. Try again shortly.";
+        return;
+      }
+
+      privacyErrorEl.textContent = "Incorrect password.";
+      privacyPasswordInput.select();
+    }
+
+    function logoutFromClosingTab() {
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon("/logout", new Blob([], { type: "application/x-www-form-urlencoded" }));
+        return;
+      }
+
+      fetch("/logout", {
+        method: "POST",
+        credentials: "same-origin",
+        keepalive: true,
       });
     }
 
