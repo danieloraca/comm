@@ -188,8 +188,30 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     :root {
       color-scheme: light dark;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #f5f7f8;
-      color: #192024;
+      --page-bg: #eef2f4;
+      --app-bg: #ffffff;
+      --surface-bg: #f8fafb;
+      --elevated-bg: #ffffff;
+      --text: #192024;
+      --muted: #53636d;
+      --border: #d5dde2;
+      --control-border: #bac5cc;
+      --menu-border: #c7d1d8;
+      --shadow: 0 12px 30px rgba(25, 32, 36, 0.08);
+      --menu-shadow: 0 8px 18px rgba(25, 32, 36, 0.14);
+      --accent: #1d5f8f;
+      --accent-text: #ffffff;
+      --accent-soft: #9ac2ff;
+      --presence-off: #7f8d96;
+      --presence-on: #24b45a;
+      --message-bg: #e6eef4;
+      --own-message-bg: #d6e9f7;
+      --hover-bg: #edf3f7;
+      --danger: #8a1f1f;
+      --danger-bg: #fff0f0;
+      --privacy-bg: #eef2f4;
+      background: var(--page-bg);
+      color: var(--text);
     }
 
     * {
@@ -207,7 +229,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       margin: 0;
       padding: 18px;
       overflow: hidden;
-      background: #eef2f4;
+      background: var(--page-bg);
     }
 
     main {
@@ -221,10 +243,10 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       grid-template-rows: auto minmax(0, 1fr) auto auto;
       gap: 14px;
       padding: 20px;
-      border: 1px solid #d5dde2;
+      border: 1px solid var(--border);
       border-radius: 8px;
-      background: #ffffff;
-      box-shadow: 0 12px 30px rgba(25, 32, 36, 0.08);
+      background: var(--app-bg);
+      box-shadow: var(--shadow);
     }
 
     h1 {
@@ -235,7 +257,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
     p {
       margin: 0;
-      color: #53636d;
+      color: var(--muted);
     }
 
     header {
@@ -260,24 +282,24 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       align-items: center;
       gap: 6px;
       font-size: 0.82rem;
-      color: #53636d;
+      color: var(--muted);
     }
 
     .presence-dot {
       width: 8px;
       height: 8px;
       border-radius: 999px;
-      background: #7f8d96;
+      background: var(--presence-off);
     }
 
     .presence-dot.online {
-      background: #24b45a;
+      background: var(--presence-on);
     }
 
     .typing {
       min-height: 18px;
       font-size: 0.84rem;
-      color: #53636d;
+      color: var(--muted);
     }
 
     .typing:empty {
@@ -298,16 +320,16 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       min-height: 36px;
       padding: 0 12px;
       background: transparent;
-      color: #1d5f8f;
-      border: 1px solid #9fb5c3;
+      color: var(--accent);
+      border: 1px solid var(--control-border);
     }
 
     .logout-button {
       min-height: 36px;
       padding: 0 12px;
       background: transparent;
-      color: #1d5f8f;
-      border: 1px solid #9fb5c3;
+      color: var(--accent);
+      border: 1px solid var(--control-border);
     }
 
     .settings-panel {
@@ -319,10 +341,10 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       display: grid;
       gap: 12px;
       padding: 12px;
-      border: 1px solid #c7d1d8;
+      border: 1px solid var(--menu-border);
       border-radius: 6px;
-      background: #ffffff;
-      box-shadow: 0 8px 18px rgba(25, 32, 36, 0.14);
+      background: var(--elevated-bg);
+      box-shadow: var(--menu-shadow);
     }
 
     .settings-panel[hidden] {
@@ -331,7 +353,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
     .settings-title {
       margin: 0;
-      color: #192024;
+      color: var(--text);
       font-size: 0.9rem;
       font-weight: 700;
     }
@@ -340,7 +362,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       display: flex;
       align-items: start;
       gap: 10px;
-      color: #192024;
+      color: var(--text);
       font-size: 0.88rem;
       line-height: 1.35;
     }
@@ -350,7 +372,20 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       width: 18px;
       height: 18px;
       margin-top: 1px;
-      accent-color: #1d5f8f;
+      accent-color: var(--accent);
+    }
+
+    .setting-select {
+      flex: 1 1 auto;
+      min-width: 0;
+      width: 100%;
+      min-height: 38px;
+      padding: 6px 10px;
+      border: 1px solid var(--control-border);
+      border-radius: 6px;
+      background: var(--elevated-bg);
+      color: var(--text);
+      font: inherit;
     }
 
     .settings-section {
@@ -360,12 +395,12 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
     .settings-section + .settings-section {
       padding-top: 10px;
-      border-top: 1px solid #d5dde2;
+      border-top: 1px solid var(--border);
     }
 
     .settings-heading {
       margin: 0;
-      color: #53636d;
+      color: var(--muted);
       font-size: 0.76rem;
       font-weight: 800;
       letter-spacing: 0;
@@ -380,7 +415,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       place-items: center;
       padding: 24px;
       border-radius: inherit;
-      background: #eef2f4;
+      background: var(--privacy-bg);
     }
 
     .privacy-screen[hidden] {
@@ -400,13 +435,13 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
     .privacy-content h2 {
       margin: 0;
-      color: #192024;
+      color: var(--text);
       font-size: 1.35rem;
       line-height: 1.2;
     }
 
     .privacy-content p {
-      color: #53636d;
+      color: var(--muted);
       font-size: 0.92rem;
     }
 
@@ -420,16 +455,16 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       width: 100%;
       min-height: 44px;
       padding: 10px 12px;
-      border: 1px solid #bac5cc;
+      border: 1px solid var(--control-border);
       border-radius: 6px;
       font: inherit;
-      background: #ffffff;
-      color: #192024;
+      background: var(--elevated-bg);
+      color: var(--text);
     }
 
     .privacy-error {
       min-height: 18px;
-      color: #8a1f1f;
+      color: var(--danger);
       font-size: 0.86rem;
       font-weight: 650;
     }
@@ -445,9 +480,9 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       flex-direction: column;
       gap: 10px;
       padding: 12px;
-      border: 1px solid #d5dde2;
+      border: 1px solid var(--border);
       border-radius: 6px;
-      background: #f8fafb;
+      background: var(--surface-bg);
     }
 
     .message {
@@ -472,7 +507,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       align-items: center;
       gap: 8px;
       padding: 0 2px;
-      color: #53636d;
+      color: var(--muted);
       font-size: 0.72rem;
     }
 
@@ -484,13 +519,13 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       max-width: 100%;
       padding: 8px 10px;
       border-radius: 7px;
-      background: #e6eef4;
+      background: var(--message-bg);
       white-space: pre-wrap;
       overflow-wrap: anywhere;
     }
 
     .message.own .message-bubble {
-      background: #d6e9f7;
+      background: var(--own-message-bg);
     }
 
     .message time {
@@ -504,10 +539,10 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       left: 0;
       min-width: 178px;
       padding: 4px;
-      border: 1px solid #c7d1d8;
+      border: 1px solid var(--menu-border);
       border-radius: 6px;
-      background: #ffffff;
-      box-shadow: 0 8px 18px rgba(25, 32, 36, 0.14);
+      background: var(--elevated-bg);
+      box-shadow: var(--menu-shadow);
     }
 
     .message.own .message-menu {
@@ -526,23 +561,23 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       border: 0;
       border-radius: 4px;
       background: transparent;
-      color: #192024;
+      color: var(--text);
       text-align: left;
       font-size: 0.88rem;
     }
 
     .message-action:hover,
     .message-action:focus {
-      background: #edf3f7;
+      background: var(--hover-bg);
     }
 
     .message-action.danger {
-      color: #8a1f1f;
+      color: var(--danger);
     }
 
     .message-action.danger:hover,
     .message-action.danger:focus {
-      background: #fff0f0;
+      background: var(--danger-bg);
     }
 
     form {
@@ -564,11 +599,11 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       min-height: 44px;
       max-height: 140px;
       padding: 10px 12px;
-      border: 1px solid #bac5cc;
+      border: 1px solid var(--control-border);
       border-radius: 6px;
       font: inherit;
-      background: #ffffff;
-      color: #192024;
+      background: var(--elevated-bg);
+      color: var(--text);
       resize: none;
       overflow-y: auto;
     }
@@ -578,8 +613,8 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       padding: 0 16px;
       border: 0;
       border-radius: 6px;
-      background: #1d5f8f;
-      color: #ffffff;
+      background: var(--accent);
+      color: var(--accent-text);
       font: inherit;
       font-weight: 700;
       cursor: pointer;
@@ -589,9 +624,9 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       width: 44px;
       min-height: 44px;
       padding: 0;
-      border: 1px solid #bac5cc;
-      background: #ffffff;
-      color: #192024;
+      border: 1px solid var(--control-border);
+      background: var(--elevated-bg);
+      color: var(--text);
       font-size: 1.15rem;
     }
 
@@ -611,10 +646,10 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       bottom: calc(100% + 6px);
       min-width: 180px;
       padding: 4px;
-      border: 1px solid #c7d1d8;
+      border: 1px solid var(--menu-border);
       border-radius: 6px;
-      background: #ffffff;
-      box-shadow: 0 8px 18px rgba(25, 32, 36, 0.14);
+      background: var(--elevated-bg);
+      box-shadow: var(--menu-shadow);
     }
 
     .emoji-suggestions[hidden] {
@@ -631,7 +666,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       border: 0;
       border-radius: 4px;
       background: transparent;
-      color: #192024;
+      color: var(--text);
       text-align: left;
       font-size: 0.9rem;
     }
@@ -639,172 +674,90 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     .emoji-suggestion[aria-selected="true"],
     .emoji-suggestion:hover,
     .emoji-suggestion:focus {
-      background: #edf3f7;
+      background: var(--hover-bg);
     }
 
     textarea:focus,
+    .setting-select:focus,
     .privacy-form input:focus,
     button:focus {
-      outline: 3px solid #9ac2ff;
+      outline: 3px solid var(--accent-soft);
       outline-offset: 1px;
     }
 
     @media (prefers-color-scheme: dark) {
-      :root,
-      body {
-        background: #11181c;
-        color: #edf3f7;
+      :root:not([data-theme="light"]):not([data-theme="dim"]) {
+        color-scheme: dark;
+        --page-bg: #11181c;
+        --app-bg: #182229;
+        --surface-bg: #11181c;
+        --elevated-bg: #182229;
+        --text: #edf3f7;
+        --muted: #afbdc5;
+        --border: #32434d;
+        --control-border: #48616f;
+        --menu-border: #48616f;
+        --shadow: none;
+        --menu-shadow: none;
+        --accent: #4b9ad3;
+        --accent-text: #071014;
+        --message-bg: #253641;
+        --own-message-bg: #234a66;
+        --hover-bg: #253641;
+        --danger: #ffd4d4;
+        --danger-bg: #311d1d;
+        --privacy-bg: #11181c;
       }
+    }
 
-      main {
-        border-color: #32434d;
-        background: #182229;
-        box-shadow: none;
-      }
+    :root[data-theme="light"] {
+      color-scheme: light;
+    }
 
-      p {
-        color: #afbdc5;
-      }
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --page-bg: #11181c;
+      --app-bg: #182229;
+      --surface-bg: #11181c;
+      --elevated-bg: #182229;
+      --text: #edf3f7;
+      --muted: #afbdc5;
+      --border: #32434d;
+      --control-border: #48616f;
+      --menu-border: #48616f;
+      --shadow: none;
+      --menu-shadow: none;
+      --accent: #4b9ad3;
+      --accent-text: #071014;
+      --message-bg: #253641;
+      --own-message-bg: #234a66;
+      --hover-bg: #253641;
+      --danger: #ffd4d4;
+      --danger-bg: #311d1d;
+      --privacy-bg: #11181c;
+    }
 
-      .typing {
-        color: #afbdc5;
-      }
-
-      .presence {
-        color: #afbdc5;
-      }
-
-      .messages {
-        border-color: #32434d;
-        background: #11181c;
-      }
-
-      .message-bubble {
-        background: #253641;
-      }
-
-      .message.own {
-        background: transparent;
-      }
-
-      .message-meta,
-      .message time {
-        color: #afbdc5;
-      }
-
-      .message.own .message-bubble {
-        background: #234a66;
-      }
-
-      .message-menu {
-        border-color: #48616f;
-        background: #182229;
-        box-shadow: none;
-      }
-
-      .settings-panel {
-        border-color: #48616f;
-        background: #182229;
-        box-shadow: none;
-      }
-
-      .settings-title,
-      .setting-row {
-        color: #edf3f7;
-      }
-
-      .settings-section + .settings-section {
-        border-top-color: #32434d;
-      }
-
-      .settings-heading {
-        color: #afbdc5;
-      }
-
-      .privacy-screen {
-        background: #11181c;
-      }
-
-      .privacy-content h2 {
-        color: #edf3f7;
-      }
-
-      .privacy-content p {
-        color: #afbdc5;
-      }
-
-      .privacy-form input {
-        border-color: #48616f;
-        background: #11181c;
-        color: #edf3f7;
-      }
-
-      .privacy-error {
-        color: #ffd4d4;
-      }
-
-      .message-action {
-        color: #edf3f7;
-      }
-
-      .message-action:hover,
-      .message-action:focus {
-        background: #253641;
-      }
-
-      .message-action.danger {
-        color: #ffd4d4;
-      }
-
-      .message-action.danger:hover,
-      .message-action.danger:focus {
-        background: #311d1d;
-      }
-
-      textarea {
-        border-color: #48616f;
-        background: #11181c;
-        color: #edf3f7;
-      }
-
-      button {
-        background: #4b9ad3;
-        color: #071014;
-      }
-
-      .emoji-button {
-        border-color: #48616f;
-        background: #11181c;
-        color: #edf3f7;
-      }
-
-      .emoji-suggestions {
-        border-color: #48616f;
-        background: #182229;
-        box-shadow: none;
-      }
-
-      .emoji-suggestion {
-        color: #edf3f7;
-      }
-
-      .emoji-suggestion[aria-selected="true"],
-      .emoji-suggestion:hover,
-      .emoji-suggestion:focus {
-        background: #253641;
-      }
-
-      .logout-button {
-        background: transparent;
-        color: #8bc7f0;
-        border-color: #48616f;
-      }
-
-      .settings-button {
-        background: transparent;
-        color: #8bc7f0;
-        border-color: #48616f;
-      }
+    :root[data-theme="dim"] {
+      color-scheme: dark;
+      --page-bg: #20252a;
+      --app-bg: #2a3036;
+      --surface-bg: #22282e;
+      --elevated-bg: #303740;
+      --text: #eef2f5;
+      --muted: #b7c0c7;
+      --border: #46515b;
+      --control-border: #596672;
+      --menu-border: #596672;
+      --shadow: none;
+      --menu-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+      --accent: #7fb5de;
+      --accent-text: #10171d;
+      --message-bg: #3a444d;
+      --own-message-bg: #325875;
+      --hover-bg: #3a444d;
+      --danger: #ffd1d1;
+      --danger-bg: #4a2b2f;
+      --privacy-bg: #20252a;
     }
 
     @media (max-width: 520px) {
@@ -849,6 +802,18 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       </div>
       <div class="settings-panel" id="settings-panel" hidden>
         <h2 class="settings-title">Settings</h2>
+        <div class="settings-section">
+          <h3 class="settings-heading">Appearance</h3>
+          <label class="setting-row">
+            <span>Theme</span>
+            <select class="setting-select" id="theme-select">
+              <option value="system">System</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+              <option value="dim">Dim</option>
+            </select>
+          </label>
+        </div>
         <div class="settings-section">
           <h3 class="settings-heading">Privacy Mode</h3>
           <label class="setting-row">
@@ -904,6 +869,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     const input = document.querySelector("#message");
     const settingsButton = document.querySelector("#settings-button");
     const settingsPanel = document.querySelector("#settings-panel");
+    const themeSelect = document.querySelector("#theme-select");
     const privacyModeInput = document.querySelector("#privacy-mode");
     const privacyScreen = document.querySelector("#privacy-screen");
     const privacyContent = document.querySelector("#privacy-content");
@@ -914,6 +880,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     const emojiSuggestionsEl = document.querySelector("#emoji-suggestions");
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
+    const themeKey = `comm.theme.${currentUser}`;
     const privacyModeKey = `comm.privacyMode.${currentUser}`;
     const logoutOnCloseKey = `comm.logoutOnClose.${currentUser}`;
     const emojiShortcodes = [
@@ -931,6 +898,8 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     let privacyTapCount = 0;
     const onlineUsers = new Set();
 
+    themeSelect.value = localStorage.getItem(themeKey) || "system";
+    applyTheme(themeSelect.value);
     privacyModeInput.checked = localStorage.getItem(privacyModeKey) === "true";
     logoutOnCloseInput.checked = localStorage.getItem(logoutOnCloseKey) === "true";
 
@@ -1009,6 +978,11 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
     logoutOnCloseInput.addEventListener("change", () => {
       localStorage.setItem(logoutOnCloseKey, String(logoutOnCloseInput.checked));
+    });
+
+    themeSelect.addEventListener("change", () => {
+      localStorage.setItem(themeKey, themeSelect.value);
+      applyTheme(themeSelect.value);
     });
 
     privacyModeInput.addEventListener("change", () => {
@@ -1226,6 +1200,15 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     function closeSettings() {
       settingsPanel.hidden = true;
       settingsButton.setAttribute("aria-expanded", "false");
+    }
+
+    function applyTheme(theme) {
+      if (theme === "system") {
+        document.documentElement.removeAttribute("data-theme");
+        return;
+      }
+
+      document.documentElement.dataset.theme = theme;
     }
 
     function lockPrivacyScreen() {

@@ -90,6 +90,7 @@ To change a password, generate a new hash, replace that user's `password_hash`, 
 - The online dot is based on active WebSocket connections.
 - Emoji toolbar and shortcodes are supported for `:smile`, `:heart`, `:hug`, `:heart-yellow`, `:yellow-heart`, and `:lol`.
 - The message composer supports multiline input with Shift+Enter; Enter sends.
+- Per-user theme preference is stored in the browser with `System`, `Light`, `Dark`, and `Dim` options.
 
 ## Privacy Mode
 
