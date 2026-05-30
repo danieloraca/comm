@@ -388,6 +388,46 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       font: inherit;
     }
 
+    .font-size-control {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 10px;
+      color: var(--text);
+      font-size: 0.88rem;
+      line-height: 1.35;
+    }
+
+    .font-size-buttons {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .font-size-button {
+      width: 36px;
+      min-height: 36px;
+      padding: 0;
+      border: 1px solid var(--control-border);
+      background: transparent;
+      color: var(--accent);
+      font-size: 1rem;
+    }
+
+    .font-size-button:disabled {
+      color: var(--muted);
+      cursor: default;
+      opacity: 0.6;
+    }
+
+    .font-size-value {
+      min-width: 44px;
+      color: var(--muted);
+      text-align: center;
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+
     .settings-section {
       display: grid;
       gap: 8px;
@@ -813,6 +853,14 @@ const CHAT_PAGE: &str = r##"<!doctype html>
               <option value="dim">Dim</option>
             </select>
           </label>
+          <div class="font-size-control">
+            <span>Text size</span>
+            <div class="font-size-buttons" aria-label="Text size controls">
+              <button class="font-size-button" id="font-size-decrease" type="button" title="Decrease text size">-</button>
+              <span class="font-size-value" id="font-size-value">100%</span>
+              <button class="font-size-button" id="font-size-increase" type="button" title="Increase text size">+</button>
+            </div>
+          </div>
         </div>
         <div class="settings-section">
           <h3 class="settings-heading">Privacy Mode</h3>
@@ -870,6 +918,9 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     const settingsButton = document.querySelector("#settings-button");
     const settingsPanel = document.querySelector("#settings-panel");
     const themeSelect = document.querySelector("#theme-select");
+    const fontSizeDecreaseButton = document.querySelector("#font-size-decrease");
+    const fontSizeIncreaseButton = document.querySelector("#font-size-increase");
+    const fontSizeValue = document.querySelector("#font-size-value");
     const privacyModeInput = document.querySelector("#privacy-mode");
     const privacyScreen = document.querySelector("#privacy-screen");
     const privacyContent = document.querySelector("#privacy-content");
@@ -881,8 +932,12 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
     const themeKey = `comm.theme.${currentUser}`;
+    const fontSizeKey = `comm.fontSize.${currentUser}`;
     const privacyModeKey = `comm.privacyMode.${currentUser}`;
     const logoutOnCloseKey = `comm.logoutOnClose.${currentUser}`;
+    const fontSizeMin = 90;
+    const fontSizeMax = 130;
+    const fontSizeStep = 10;
     const emojiShortcodes = [
       { code: "heart", emoji: "❤️" },
       { code: "heart-yellow", emoji: "💛" },
@@ -900,6 +955,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
     themeSelect.value = localStorage.getItem(themeKey) || "system";
     applyTheme(themeSelect.value);
+    applyFontSize(readFontSize());
     privacyModeInput.checked = localStorage.getItem(privacyModeKey) === "true";
     logoutOnCloseInput.checked = localStorage.getItem(logoutOnCloseKey) === "true";
 
@@ -983,6 +1039,14 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     themeSelect.addEventListener("change", () => {
       localStorage.setItem(themeKey, themeSelect.value);
       applyTheme(themeSelect.value);
+    });
+
+    fontSizeDecreaseButton.addEventListener("click", () => {
+      setFontSize(readFontSize() - fontSizeStep);
+    });
+
+    fontSizeIncreaseButton.addEventListener("click", () => {
+      setFontSize(readFontSize() + fontSizeStep);
     });
 
     privacyModeInput.addEventListener("change", () => {
@@ -1209,6 +1273,36 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       }
 
       document.documentElement.dataset.theme = theme;
+    }
+
+    function readFontSize() {
+      const stored = Number(localStorage.getItem(fontSizeKey));
+      return clampFontSize(Number.isFinite(stored) ? stored : 100);
+    }
+
+    function setFontSize(value) {
+      const nextValue = clampFontSize(value);
+      localStorage.setItem(fontSizeKey, String(nextValue));
+      applyFontSize(nextValue);
+    }
+
+    function applyFontSize(value) {
+      const nextValue = clampFontSize(value);
+
+      if (nextValue === 100) {
+        document.documentElement.style.fontSize = "";
+      } else {
+        document.documentElement.style.fontSize = `${nextValue}%`;
+      }
+
+      fontSizeValue.textContent = `${nextValue}%`;
+      fontSizeDecreaseButton.disabled = nextValue <= fontSizeMin;
+      fontSizeIncreaseButton.disabled = nextValue >= fontSizeMax;
+      resizeComposer();
+    }
+
+    function clampFontSize(value) {
+      return Math.min(fontSizeMax, Math.max(fontSizeMin, value));
     }
 
     function lockPrivacyScreen() {
