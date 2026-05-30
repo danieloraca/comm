@@ -80,6 +80,7 @@ Current behavior:
 - Message bodies are encrypted at rest before being written to SQLite.
 - Messages can be deleted for one user or soft-deleted for everyone by their sender.
 - Typing indicators are sent as transient WebSocket events and are not stored.
+- Online status is based on active WebSocket connections and is not stored.
 
 Local test login credentials:
 
@@ -120,6 +121,8 @@ Planned behavior:
 - Message encryption key stored locally in `message.key` by default.
 - `Delete for me` stores a row in `hidden_messages` and only affects that user's history/view.
 - `Delete for everyone` sets `messages.deleted_at`, is only allowed for the sender, and removes the message for all clients.
+- The green online dot turns on when the other user has at least one active chat tab connected.
+- Presence changes are sent as transient WebSocket events. There is no polling and no database row for online status.
 - Server binds to the MacBook Tailscale IP:
 
   ```text

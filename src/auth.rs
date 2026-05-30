@@ -27,6 +27,7 @@ const SESSION_COOKIE: &str = "comm_session";
 pub struct AppState {
     chat_tx: broadcast::Sender<chat::ServerEvent>,
     login_attempts: Arc<RwLock<HashMap<String, LoginAttempt>>>,
+    presence_counts: Arc<RwLock<HashMap<String, usize>>>,
     sessions: Arc<RwLock<HashMap<String, String>>>,
     store: store::MessageStore,
     users: users::UserStore,
@@ -39,6 +40,7 @@ impl AppState {
         Self {
             chat_tx,
             login_attempts: Arc::default(),
+            presence_counts: Arc::default(),
             sessions: Arc::default(),
             store: store::MessageStore::load_from_env().await,
             users: users::UserStore::load_from_env(),
@@ -119,6 +121,45 @@ impl AppState {
 
     pub fn message_store(&self) -> store::MessageStore {
         self.store.clone()
+    }
+
+    pub fn connect_user(&self, username: &str) -> bool {
+        let mut counts = self
+            .presence_counts
+            .write()
+            .expect("presence store lock poisoned");
+        let count = counts.entry(username.to_owned()).or_insert(0);
+        let was_offline = *count == 0;
+        *count += 1;
+        was_offline
+    }
+
+    pub fn disconnect_user(&self, username: &str) -> bool {
+        let mut counts = self
+            .presence_counts
+            .write()
+            .expect("presence store lock poisoned");
+        let Some(count) = counts.get_mut(username) else {
+            return false;
+        };
+
+        *count = count.saturating_sub(1);
+
+        if *count == 0 {
+            counts.remove(username);
+            return true;
+        }
+
+        false
+    }
+
+    pub fn online_users(&self) -> Vec<String> {
+        self.presence_counts
+            .read()
+            .expect("presence store lock poisoned")
+            .keys()
+            .cloned()
+            .collect()
     }
 }
 

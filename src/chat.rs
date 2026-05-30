@@ -29,6 +29,8 @@ pub enum ServerEvent {
     DeleteForEveryone { id: i64 },
     #[serde(rename = "typing")]
     Typing { from: String, is_typing: bool },
+    #[serde(rename = "presence")]
+    Presence { username: String, online: bool },
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -85,6 +87,29 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
                 return;
             }
         }
+    }
+
+    let became_online = state.connect_user(&username);
+    for online_username in state.online_users() {
+        let event = ServerEvent::Presence {
+            username: online_username,
+            online: true,
+        };
+        let Ok(payload) = serde_json::to_string(&event) else {
+            continue;
+        };
+
+        if sender.send(Message::Text(payload.into())).await.is_err() {
+            state.disconnect_user(&username);
+            return;
+        }
+    }
+
+    if became_online {
+        let _ = chat_tx.send(ServerEvent::Presence {
+            username: username.clone(),
+            online: true,
+        });
     }
 
     let send_task = tokio::spawn(async move {
@@ -173,6 +198,13 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
     }
 
     send_task.abort();
+
+    if state.disconnect_user(&username) {
+        let _ = chat_tx.send(ServerEvent::Presence {
+            username,
+            online: false,
+        });
+    }
 }
 
 impl From<StoredMessage> for ChatMessage {

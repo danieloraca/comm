@@ -244,6 +244,25 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       font-size: 0.86rem;
     }
 
+    .presence {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.82rem;
+      color: #53636d;
+    }
+
+    .presence-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #7f8d96;
+    }
+
+    .presence-dot.online {
+      background: #24b45a;
+    }
+
     .typing {
       min-height: 18px;
       font-size: 0.84rem;
@@ -490,6 +509,10 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         color: #afbdc5;
       }
 
+      .presence {
+        color: #afbdc5;
+      }
+
       .messages {
         border-color: #32434d;
         background: #11181c;
@@ -603,6 +626,10 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       <div class="title">
         <h1>Comm</h1>
         <p class="status" id="status">Connecting as {{username}}</p>
+        <p class="presence">
+          <span class="presence-dot" id="presence-dot"></span>
+          <span id="presence-label">No one else online</span>
+        </p>
       </div>
       <form class="logout-form" method="post" action="/logout">
         <button class="logout-button" type="submit">Log out</button>
@@ -625,6 +652,8 @@ const CHAT_PAGE: &str = r##"<!doctype html>
   <script>
     const currentUser = "{{username}}";
     const statusEl = document.querySelector("#status");
+    const presenceDotEl = document.querySelector("#presence-dot");
+    const presenceLabelEl = document.querySelector("#presence-label");
     const messagesEl = document.querySelector("#messages");
     const typingEl = document.querySelector("#typing");
     const form = document.querySelector("#chat-form");
@@ -640,6 +669,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     let typingSent = false;
     let activeEmojiMatch = null;
     let selectedEmojiIndex = 0;
+    const onlineUsers = new Set();
 
     socket.addEventListener("open", () => {
       statusEl.textContent = `Connected as ${currentUser}`;
@@ -668,6 +698,10 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         typingEl.textContent = serverEvent.is_typing
           ? `${serverEvent.from} is typing...`
           : "";
+      }
+
+      if (serverEvent.type === "presence") {
+        updatePresence(serverEvent.username, serverEvent.online);
       }
     });
 
@@ -874,6 +908,24 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
       typingSent = isTyping;
       socket.send(JSON.stringify({ type: "typing", is_typing: isTyping }));
+    }
+
+    function updatePresence(username, online) {
+      if (username === currentUser) {
+        return;
+      }
+
+      if (online) {
+        onlineUsers.add(username);
+      } else {
+        onlineUsers.delete(username);
+      }
+
+      const others = [...onlineUsers].sort();
+      presenceDotEl.classList.toggle("online", others.length > 0);
+      presenceLabelEl.textContent = others.length > 0
+        ? `${others.join(", ")} online`
+        : "No one else online";
     }
 
     function insertAtCursor(value) {
