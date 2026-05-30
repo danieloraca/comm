@@ -278,6 +278,10 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       color: #53636d;
     }
 
+    .typing:empty {
+      display: none;
+    }
+
     .logout-form {
       display: block;
     }
@@ -399,13 +403,16 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
     form {
       display: grid;
-      grid-template-columns: auto 1fr auto;
+      grid-template-columns: 1fr auto;
       gap: 10px;
     }
 
     .emoji-bar {
       display: flex;
+      grid-column: 1 / -1;
       gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 2px;
     }
 
     textarea {
@@ -622,7 +629,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       }
 
       form {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr) auto;
       }
 
       header {
