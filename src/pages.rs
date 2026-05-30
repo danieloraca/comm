@@ -196,19 +196,28 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       box-sizing: border-box;
     }
 
+    html,
     body {
-      min-height: 100vh;
+      height: 100%;
+    }
+
+    body {
+      height: 100vh;
+      height: 100dvh;
       margin: 0;
       padding: 18px;
+      overflow: hidden;
       background: #eef2f4;
     }
 
     main {
       width: min(100%, 760px);
-      min-height: calc(100vh - 36px);
+      height: calc(100vh - 36px);
+      height: calc(100dvh - 36px);
+      min-height: 0;
       margin: 0 auto;
       display: grid;
-      grid-template-rows: auto 1fr auto;
+      grid-template-rows: auto minmax(0, 1fr) auto auto;
       gap: 14px;
       padding: 20px;
       border: 1px solid #d5dde2;
@@ -282,7 +291,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     }
 
     .messages {
-      min-height: 280px;
+      min-height: 0;
       overflow: auto;
       display: flex;
       flex-direction: column;
@@ -605,7 +614,9 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       }
 
       main {
-        min-height: 100vh;
+        height: 100vh;
+        height: 100dvh;
+        min-height: 0;
         border-radius: 0;
         border-width: 0;
       }
