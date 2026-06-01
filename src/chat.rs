@@ -1,3 +1,9 @@
+use std::{
+    env,
+    io::{self, Write},
+    process::Command,
+};
+
 use axum::{
     extract::{
         State,
@@ -230,10 +236,23 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
 }
 
 fn log_presence(username: &str, status: &str) {
+    play_presence_sound();
     println!(
         "{} user {status}: {username}",
         Utc::now().format("%Y-%m-%d %H:%M:%S")
     );
+}
+
+fn play_presence_sound() {
+    if let Ok(sound_file) = env::var("COMM_PRESENCE_SOUND")
+        && !sound_file.trim().is_empty()
+    {
+        let _ = Command::new("afplay").arg(sound_file).spawn();
+        return;
+    }
+
+    print!("\x07");
+    let _ = io::stdout().flush();
 }
 
 impl From<StoredMessage> for ChatMessage {

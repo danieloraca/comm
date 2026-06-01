@@ -45,12 +45,21 @@ The app reads local files and bind settings from environment variables.
 | `COMM_USERS_FILE` | `users.toml` | Usernames and Argon2id password hashes |
 | `COMM_DATABASE_FILE` | `comm.sqlite3` | SQLite database path |
 | `COMM_MESSAGE_KEY_FILE` | `message.key` | Local encryption key path |
+| `COMM_PRESENCE_SOUND` | unset | Optional sound file played with `afplay` when a user comes online/offline |
 
 For Tailscale access, run with a Tailscale bind address:
 
 ```bash
 COMM_BIND_ADDR=<server-tailscale-ip>:8787 cargo run --bin comm
 ```
+
+On macOS, choose a presence sound with:
+
+```bash
+COMM_PRESENCE_SOUND=/System/Library/Sounds/Glass.aiff cargo run --bin comm
+```
+
+If `COMM_PRESENCE_SOUND` is unset, the app falls back to the terminal bell.
 
 ## Users And Passwords
 
