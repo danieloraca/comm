@@ -6,6 +6,7 @@ use axum::{
     http::HeaderMap,
     response::{IntoResponse, Response},
 };
+use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
@@ -118,6 +119,7 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
     }
 
     if became_online {
+        log_presence(&username, "online");
         let _ = chat_tx.send(ServerEvent::Presence {
             username: username.clone(),
             online: true,
@@ -219,11 +221,19 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
     send_task.abort();
 
     if state.disconnect_user(&username) {
+        log_presence(&username, "offline");
         let _ = chat_tx.send(ServerEvent::Presence {
             username,
             online: false,
         });
     }
+}
+
+fn log_presence(username: &str, status: &str) {
+    println!(
+        "{} user {status}: {username}",
+        Utc::now().format("%Y-%m-%d %H:%M:%S")
+    );
 }
 
 impl From<StoredMessage> for ChatMessage {
