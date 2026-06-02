@@ -95,12 +95,24 @@ To change a password, generate a new hash, replace that user's `password_hash`, 
 - Messages are encrypted before being written to SQLite.
 - `Delete for me` hides a message only for the requester.
 - `Delete for everyone` is allowed only for the sender and soft-deletes the message for both users.
-- Typing indicators and online presence are transient WebSocket events and are not stored.
+- Typing indicators are transient WebSocket events and are not stored.
 - The online dot is based on active WebSocket connections.
+- Online/offline presence transitions are stored in the local `activity_logs` table and printed in the terminal.
 - Read receipts are stored locally and are sent only after an incoming message is visible while the chat is unlocked.
 - Emoji toolbar and shortcodes are supported for common reactions such as `:smile`, `:heart`, `:hug`, `:lol`, `:punch`, `:face-punch`, `:kiss`, `:smirk`, `:eyeroll`, `:cry`, `:angry`, `:fire`, `:yes`, `:no`, `:eyes`, `:facepalm`, `:shrug`, `:middle-finger`, `:finger`, and `:fu`.
 - The message composer supports multiline input with Shift+Enter; Enter sends.
 - Per-user appearance preferences are stored in the browser, including `System`, `Light`, `Dark`, `Dim`, and `Red` themes plus text size controls from 90% to 130%.
+
+## Activity Logs
+
+Type `/activityLogs` in the message composer to switch the message pane to recent online/offline activity. The view uses the same format as the terminal:
+
+```text
+2026-06-02 08:24:17 user online: alice
+2026-06-02 08:24:31 user offline: alice
+```
+
+Press `q` or `Escape` to return to the normal messages view. Activity log history starts from the first online/offline event after the feature is running; older terminal-only lines are not backfilled.
 
 ## Privacy Mode
 
