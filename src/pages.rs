@@ -574,6 +574,38 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       cursor: pointer;
     }
 
+    .messages.activity-mode .message {
+      display: none;
+    }
+
+    .activity-log-view {
+      min-height: 100%;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: 10px;
+      color: var(--text);
+    }
+
+    .activity-log-view[hidden] {
+      display: none;
+    }
+
+    .activity-log-hint {
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .activity-log-lines {
+      margin: 0;
+      overflow: auto;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      color: var(--text);
+      font: 0.84rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    }
+
     .message.own {
       justify-items: end;
       align-self: flex-end;
@@ -968,7 +1000,12 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         </div>
       </div>
     </header>
-    <section class="messages" id="messages" aria-live="polite"></section>
+    <section class="messages" id="messages" aria-live="polite">
+      <div class="activity-log-view" id="activity-log-view" hidden>
+        <div class="activity-log-hint">Activity logs - press q to return</div>
+        <pre class="activity-log-lines" id="activity-log-lines"></pre>
+      </div>
+    </section>
     <p class="typing" id="typing" aria-live="polite"></p>
     <form id="chat-form">
       <div class="emoji-bar" aria-label="Emoji shortcuts">
@@ -1015,6 +1052,8 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     const presenceDotEl = document.querySelector("#presence-dot");
     const presenceLabelEl = document.querySelector("#presence-label");
     const messagesEl = document.querySelector("#messages");
+    const activityLogView = document.querySelector("#activity-log-view");
+    const activityLogLines = document.querySelector("#activity-log-lines");
     const typingEl = document.querySelector("#typing");
     const form = document.querySelector("#chat-form");
     const input = document.querySelector("#message");
@@ -1070,6 +1109,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     let activeEmojiMatch = null;
     let selectedEmojiIndex = 0;
     let privacyTapCount = 0;
+    let activityLogMode = false;
     const onlineUsers = new Set();
     const readMessageIds = new Set();
     const readObserver = new IntersectionObserver((entries) => {
@@ -1122,13 +1162,26 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       if (serverEvent.type === "read") {
         markMessageReadInUi(serverEvent.id, serverEvent.read_at);
       }
+
+      if (serverEvent.type === "activity_logs") {
+        showActivityLogs(serverEvent.logs || []);
+      }
     });
 
     form.addEventListener("submit", (event) => {
       event.preventDefault();
-      const body = expandEmojiShortcodes(input.value.trim());
+      const rawBody = input.value.trim();
+      const body = expandEmojiShortcodes(rawBody);
 
       if (!body || socket.readyState !== WebSocket.OPEN) {
+        return;
+      }
+
+      if (rawBody === "/activityLogs") {
+        requestActivityLogs();
+        input.value = "";
+        resizeComposer();
+        sendTyping(false);
         return;
       }
 
@@ -1292,6 +1345,18 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     });
 
     document.addEventListener("keydown", (event) => {
+      if (
+        activityLogMode
+        && (event.key === "q" || event.key === "Escape")
+        && !event.metaKey
+        && !event.ctrlKey
+        && !event.altKey
+      ) {
+        event.preventDefault();
+        exitActivityLogs();
+        return;
+      }
+
       if (event.key === "Escape") {
         closeSettings();
         closeMessageMenus();
@@ -1394,6 +1459,43 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         readObserver.observe(item);
         markMessageRead(item);
       }
+    }
+
+    function requestActivityLogs() {
+      messagesEl.classList.add("activity-mode");
+      activityLogView.hidden = false;
+      activityLogMode = true;
+      typingEl.hidden = true;
+      activityLogLines.textContent = "Loading activity logs...";
+      closeMessageMenus();
+      closeEmojiSuggestions();
+      socket.send(JSON.stringify({ type: "activity_logs" }));
+    }
+
+    function showActivityLogs(logs) {
+      messagesEl.classList.add("activity-mode");
+      activityLogView.hidden = false;
+      activityLogMode = true;
+      typingEl.hidden = true;
+
+      activityLogLines.textContent = logs.length > 0
+        ? logs.map(formatActivityLog).join("\n")
+        : "No activity logs yet.";
+      messagesEl.scrollTop = 0;
+    }
+
+    function exitActivityLogs() {
+      activityLogMode = false;
+      activityLogView.hidden = true;
+      messagesEl.classList.remove("activity-mode");
+      typingEl.hidden = false;
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+      input.focus();
+      scanReadableMessages();
+    }
+
+    function formatActivityLog(log) {
+      return `${log.occurred_at} user ${log.action}: ${log.username}`;
     }
 
     function removeMessage(id) {

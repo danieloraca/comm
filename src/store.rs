@@ -6,6 +6,7 @@ use crate::crypto::{CryptoError, MessageCrypto};
 
 const DEFAULT_DATABASE_FILE: &str = "comm.sqlite3";
 const HISTORY_LIMIT: i64 = 100;
+const ACTIVITY_LOG_LIMIT: i64 = 200;
 
 #[derive(Clone)]
 pub struct MessageStore {
@@ -48,6 +49,7 @@ impl MessageStore {
         ensure_encrypted_columns(&pool).await;
         ensure_hidden_messages_table(&pool).await;
         ensure_read_receipts_table(&pool).await;
+        ensure_activity_logs_table(&pool).await;
 
         Self { crypto, pool }
     }
@@ -202,6 +204,42 @@ impl MessageStore {
         .await
     }
 
+    pub async fn record_activity_log(
+        &self,
+        username: &str,
+        action: &str,
+    ) -> sqlx::Result<ActivityLog> {
+        sqlx::query_as::<_, ActivityLog>(
+            r#"
+            INSERT INTO activity_logs (username, action)
+            VALUES (?, ?)
+            RETURNING occurred_at, username, action
+            "#,
+        )
+        .bind(username)
+        .bind(action)
+        .fetch_one(&self.pool)
+        .await
+    }
+
+    pub async fn recent_activity_logs(&self) -> sqlx::Result<Vec<ActivityLog>> {
+        sqlx::query_as::<_, ActivityLog>(
+            r#"
+            SELECT occurred_at, username, action
+            FROM (
+                SELECT id, occurred_at, username, action
+                FROM activity_logs
+                ORDER BY id DESC
+                LIMIT ?
+            )
+            ORDER BY id ASC
+            "#,
+        )
+        .bind(ACTIVITY_LOG_LIMIT)
+        .fetch_all(&self.pool)
+        .await
+    }
+
     async fn decrypt_row(&self, row: MessageRow) -> StoredMessage {
         let body = match (row.body_ciphertext.as_deref(), row.body_nonce.as_deref()) {
             (Some(ciphertext), Some(nonce)) => self
@@ -284,6 +322,22 @@ async fn ensure_read_receipts_table(pool: &SqlitePool) {
     .unwrap_or_else(|error| panic!("failed to create read receipt schema: {error}"));
 }
 
+async fn ensure_activity_logs_table(pool: &SqlitePool) {
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS activity_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            occurred_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
+            username TEXT NOT NULL,
+            action TEXT NOT NULL
+        )
+        "#,
+    )
+    .execute(pool)
+    .await
+    .unwrap_or_else(|error| panic!("failed to create activity log schema: {error}"));
+}
+
 #[derive(Debug)]
 pub struct StoredMessage {
     pub id: i64,
@@ -298,6 +352,13 @@ pub struct ReadReceipt {
     pub message_id: i64,
     pub username: String,
     pub read_at: String,
+}
+
+#[derive(Clone, Debug, FromRow)]
+pub struct ActivityLog {
+    pub occurred_at: String,
+    pub username: String,
+    pub action: String,
 }
 
 #[derive(Debug, FromRow)]

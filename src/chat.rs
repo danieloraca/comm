@@ -19,7 +19,7 @@ use tokio::sync::broadcast;
 
 use crate::{
     auth::AppState,
-    store::{ReadReceipt, StoredMessage},
+    store::{ActivityLog, ReadReceipt, StoredMessage},
 };
 
 const MAX_MESSAGE_LEN: usize = 2_000;
@@ -47,6 +47,12 @@ pub enum ServerEvent {
         by: String,
         read_at: String,
     },
+    #[serde(rename = "activity_logs")]
+    ActivityLogs {
+        #[serde(skip)]
+        username: String,
+        logs: Vec<ActivityLogEntry>,
+    },
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -56,6 +62,13 @@ pub struct ChatMessage {
     body: String,
     created_at: String,
     read_at: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ActivityLogEntry {
+    occurred_at: String,
+    username: String,
+    action: String,
 }
 
 #[derive(Deserialize)]
@@ -71,6 +84,8 @@ enum ClientEvent {
     Typing { is_typing: bool },
     #[serde(rename = "read")]
     Read { id: i64 },
+    #[serde(rename = "activity_logs")]
+    ActivityLogs,
 }
 
 pub async fn websocket(
@@ -125,7 +140,7 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
     }
 
     if became_online {
-        log_presence(&username, "online");
+        log_presence(&store, &username, "online").await;
         let _ = chat_tx.send(ServerEvent::Presence {
             username: username.clone(),
             online: true,
@@ -139,6 +154,16 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
                     if matches!(
                         &event,
                         ServerEvent::DeleteForMe {
+                            username: target_username,
+                            ..
+                        } if target_username != &send_username
+                    ) {
+                        continue;
+                    }
+
+                    if matches!(
+                        &event,
+                        ServerEvent::ActivityLogs {
                             username: target_username,
                             ..
                         } if target_username != &send_username
@@ -217,6 +242,16 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
 
                         let _ = chat_tx.send(ServerEvent::from(receipt));
                     }
+                    ClientEvent::ActivityLogs => {
+                        let Ok(logs) = store.recent_activity_logs().await else {
+                            continue;
+                        };
+
+                        let _ = chat_tx.send(ServerEvent::ActivityLogs {
+                            username: username.clone(),
+                            logs: logs.into_iter().map(ActivityLogEntry::from).collect(),
+                        });
+                    }
                 }
             }
             Message::Close(_) => break,
@@ -227,7 +262,7 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
     send_task.abort();
 
     if state.disconnect_user(&username) {
-        log_presence(&username, "offline");
+        log_presence(&store, &username, "offline").await;
         let _ = chat_tx.send(ServerEvent::Presence {
             username,
             online: false,
@@ -235,7 +270,8 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
     }
 }
 
-fn log_presence(username: &str, status: &str) {
+async fn log_presence(store: &crate::store::MessageStore, username: &str, status: &str) {
+    let _ = store.record_activity_log(username, status).await;
     play_presence_sound();
     println!(
         "{} user {status}: {username}",
@@ -253,6 +289,16 @@ fn play_presence_sound() {
 
     print!("\x07");
     let _ = io::stdout().flush();
+}
+
+impl From<ActivityLog> for ActivityLogEntry {
+    fn from(log: ActivityLog) -> Self {
+        Self {
+            occurred_at: log.occurred_at,
+            username: log.username,
+            action: log.action,
+        }
+    }
 }
 
 impl From<StoredMessage> for ChatMessage {
