@@ -693,6 +693,12 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       overflow-wrap: anywhere;
     }
 
+    .message-bubble.emoji-only {
+      padding: 9px 12px;
+      font-size: 2.35rem;
+      line-height: 1;
+    }
+
     .read-status {
       position: absolute;
       top: -4px;
@@ -1458,6 +1464,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       const body = document.createElement("div");
       body.className = "message-bubble";
       body.textContent = message.body;
+      body.classList.toggle("emoji-only", isSingleEmojiMessage(message.body));
 
       if (message.from === currentUser) {
         const readStatus = document.createElement("span");
@@ -1563,6 +1570,20 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
     function formatActivityLog(log) {
       return `${log.occurred_at} user ${log.action}: ${log.username}`;
+    }
+
+    function isSingleEmojiMessage(value) {
+      const text = value.trim();
+
+      if (!text) {
+        return false;
+      }
+
+      const segments = typeof Intl !== "undefined" && Intl.Segmenter
+        ? [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text)].map((segment) => segment.segment)
+        : Array.from(text.replace(/\uFE0F/g, ""));
+
+      return segments.length === 1 && /(\p{Extended_Pictographic}|\u2705|\u274C)/u.test(segments[0]);
     }
 
     function removeMessage(id) {
