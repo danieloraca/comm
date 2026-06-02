@@ -992,6 +992,10 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         grid-template-columns: minmax(0, 1fr) auto;
       }
 
+      .emoji-bar {
+        display: none;
+      }
+
       header {
         align-items: start;
       }
