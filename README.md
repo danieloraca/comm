@@ -91,6 +91,7 @@ To change a password, generate a new hash, replace that user's `password_hash`, 
 - `POST /logout` removes the current session and expires the session cookie.
 - `POST /verify-password` checks the current user's password for Privacy Mode unlock.
 - `GET /ws` opens the authenticated WebSocket connection.
+- Login and chat use the dove logo mark instead of a text logo.
 - New WebSocket clients receive recent message history.
 - Messages are encrypted before being written to SQLite.
 - `Delete for me` hides a message only for the requester.
@@ -98,10 +99,11 @@ To change a password, generate a new hash, replace that user's `password_hash`, 
 - Typing indicators are transient WebSocket events and are not stored.
 - The online dot is based on active WebSocket connections.
 - Online/offline presence transitions are stored in the local `activity_logs` table and printed in the terminal.
-- Read receipts are stored locally and are sent only after an incoming message is visible while the chat is unlocked.
+- Read receipts are stored locally and are sent only after an incoming message is visible while the chat is unlocked. Sent messages show a gray dot until read, then a green dot.
 - Emoji toolbar and shortcodes are supported for common reactions such as `:smile`, `:heart`, `:hug`, `:lol`, `:punch`, `:face-punch`, `:kiss`, `:smirk`, `:eyeroll`, `:cry`, `:angry`, `:fire`, `:yes`, `:no`, `:eyes`, `:facepalm`, `:shrug`, `:middle-finger`, `:finger`, and `:fu`.
+- The emoji toolbar is hidden on small mobile screens; shortcode suggestions still work when typing.
 - The message composer supports multiline input with Shift+Enter; Enter sends.
-- Per-user appearance preferences are stored in the browser, including `System`, `Light`, `Dark`, `Dim`, and `Red` themes plus text size controls from 90% to 130%.
+- Per-user appearance preferences are stored in the browser, including `System`, `Light`, `Dark`, `Dim`, and `Red` themes plus text size controls from 90% to 130%. The logo color adapts so it remains visible in light and dark themes.
 
 ## Activity Logs
 
