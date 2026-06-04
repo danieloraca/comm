@@ -633,6 +633,13 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       line-height: 1;
     }
 
+    .message-bubble a {
+      color: var(--accent);
+      text-decoration: underline;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 2px;
+    }
+
     .read-status {
       position: absolute;
       top: -4px;
@@ -1397,7 +1404,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
       const body = document.createElement("div");
       body.className = "message-bubble";
-      body.textContent = message.body;
+      renderMessageBody(body, message.body);
       body.classList.toggle("emoji-only", isSingleEmojiMessage(message.body));
 
       if (message.from === currentUser) {
@@ -1450,7 +1457,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       }
 
       item.addEventListener("click", (event) => {
-        if (event.target.closest(".message-menu")) {
+        if (event.target.closest(".message-menu, a")) {
           return;
         }
 
@@ -1518,6 +1525,39 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         : Array.from(text.replace(/\uFE0F/g, ""));
 
       return segments.length === 1 && /(\p{Extended_Pictographic}|\u2705|\u274C)/u.test(segments[0]);
+    }
+
+    function renderMessageBody(container, value) {
+      container.replaceChildren();
+      const urlPattern = /\bhttps?:\/\/[^\s<>"']+/gi;
+      let lastIndex = 0;
+
+      for (const match of value.matchAll(urlPattern)) {
+        const rawUrl = trimTrailingUrlPunctuation(match[0]);
+        const start = match.index;
+        const end = start + rawUrl.length;
+
+        if (start > lastIndex) {
+          container.append(document.createTextNode(value.slice(lastIndex, start)));
+        }
+
+        const link = document.createElement("a");
+        link.href = rawUrl;
+        link.textContent = rawUrl;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        container.append(link);
+
+        lastIndex = end;
+      }
+
+      if (lastIndex < value.length) {
+        container.append(document.createTextNode(value.slice(lastIndex)));
+      }
+    }
+
+    function trimTrailingUrlPunctuation(value) {
+      return value.replace(/[),.!?;:]+$/u, "");
     }
 
     function removeMessage(id) {
