@@ -55,57 +55,6 @@ const LOGIN_PAGE: &str = r#"<!doctype html>
       gap: 18px;
     }
 
-    h1 {
-      margin: 0;
-      font-size: 1.45rem;
-      line-height: 1.2;
-      font-weight: 700;
-    }
-
-    .brand-mark {
-      width: 88px;
-      height: 58px;
-      margin: 0;
-      display: grid;
-      place-items: center;
-      justify-self: center;
-      border-radius: 999px;
-      background: #1d5f8f;
-      color: #f7fbff;
-      box-shadow: 0 12px 30px rgba(25, 32, 36, 0.12);
-    }
-
-    .brand-bird {
-      display: block;
-      width: 76px;
-      height: 48px;
-      filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.18));
-    }
-
-    .brand-bird-body,
-    .brand-bird-wing {
-      fill: none;
-      stroke: currentColor;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
-    .brand-bird-body {
-      stroke-width: 5;
-    }
-
-    .brand-bird-wing {
-      stroke-width: 4.5;
-    }
-
-    .brand-bird-eye {
-      fill: currentColor;
-    }
-
-    .brand-bird-beak {
-      fill: #f0b84b;
-    }
-
     form {
       display: grid;
       gap: 14px;
@@ -194,11 +143,6 @@ const LOGIN_PAGE: &str = r#"<!doctype html>
         color: #071014;
       }
 
-      .brand-mark {
-        background: #24333c;
-        box-shadow: none;
-      }
-
       .error {
         border-color: #8b4c4c;
         background: #311d1d;
@@ -209,16 +153,6 @@ const LOGIN_PAGE: &str = r#"<!doctype html>
 </head>
 <body>
   <main>
-    <h1 class="brand-mark" aria-label="Comm">
-      <svg class="brand-bird" viewBox="0 0 116 72" aria-hidden="true" focusable="false">
-        <path class="brand-bird-wing" d="M11 41c17-16 36-22 58-17"/>
-        <path class="brand-bird-wing" d="M27 53c15-12 32-17 51-14"/>
-        <path class="brand-bird-body" d="M24 42c13 2 25 7 37 15 10-1 19-5 26-12 7-7 9-15 4-20-7-7-20-2-31 10"/>
-        <path class="brand-bird-body" d="M61 35c8-15 19-24 34-27-1 13-7 24-18 33"/>
-        <path class="brand-bird-beak" d="M91 27l18 7-18 7 4-7Z"/>
-        <circle class="brand-bird-eye" cx="86" cy="25" r="2.2"/>
-      </svg>
-    </h1>
     <form method="post" action="/login">
       {{error}}
       <label>
