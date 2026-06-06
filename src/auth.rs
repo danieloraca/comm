@@ -55,13 +55,29 @@ pub struct LoginForm {
 }
 
 #[derive(Deserialize)]
+pub struct LoginStartForm {
+    q: String,
+}
+
+#[derive(Deserialize)]
 pub struct VerifyPasswordForm {
     password: String,
 }
 
+pub async fn start_login(
+    State(state): State<AppState>,
+    Form(form): Form<LoginStartForm>,
+) -> Response {
+    Redirect::to(&login_start_redirect_location(&state.users, &form.q)).into_response()
+}
+
 pub async fn login(State(state): State<AppState>, Form(form): Form<LoginForm>) -> Response {
     if login_is_rate_limited(&state, &form.username) {
-        return Redirect::to("/?error=rate_limited").into_response();
+        return Redirect::to(&login_error_redirect_location(
+            &form.username,
+            "rate_limited",
+        ))
+        .into_response();
     }
 
     if !state
@@ -69,7 +85,7 @@ pub async fn login(State(state): State<AppState>, Form(form): Form<LoginForm>) -
         .verify_credentials(&form.username, &form.password)
     {
         record_failed_login(&state, &form.username);
-        return Redirect::to("/?error=1").into_response();
+        return Redirect::to(&login_error_redirect_location(&form.username, "1")).into_response();
     }
 
     clear_failed_logins(&state, &form.username);
@@ -265,4 +281,105 @@ fn clear_failed_logins(state: &AppState, username: &str) {
         .write()
         .expect("login attempt store lock poisoned")
         .remove(username);
+}
+
+fn login_start_redirect_location(users: &users::UserStore, query: &str) -> String {
+    let query = query.trim();
+
+    if query.is_empty() {
+        return "/".to_string();
+    }
+
+    if users.has_username(query) {
+        return format!("/?username={}", percent_encode(query));
+    }
+
+    format!("https://www.google.com/search?q={}", percent_encode(query))
+}
+
+fn login_error_redirect_location(username: &str, error: &str) -> String {
+    format!(
+        "/?username={}&error={}",
+        percent_encode(username),
+        percent_encode(error)
+    )
+}
+
+fn percent_encode(value: &str) -> String {
+    value
+        .bytes()
+        .flat_map(|byte| match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                vec![byte as char]
+            }
+            _ => format!("%{byte:02X}").chars().collect(),
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn start_login_known_username_goes_to_password_step() {
+        let users = users::UserStore::from_usernames_for_tests(&["alice", "bob"]);
+
+        assert_eq!(
+            login_start_redirect_location(&users, "alice"),
+            "/?username=alice"
+        );
+    }
+
+    #[test]
+    fn start_login_unknown_username_goes_to_google_search() {
+        let users = users::UserStore::from_usernames_for_tests(&["alice", "bob"]);
+
+        assert_eq!(
+            login_start_redirect_location(&users, "weather london"),
+            "https://www.google.com/search?q=weather%20london"
+        );
+    }
+
+    #[test]
+    fn start_login_trims_input_before_routing() {
+        let users = users::UserStore::from_usernames_for_tests(&["alice", "bob"]);
+
+        assert_eq!(
+            login_start_redirect_location(&users, "  bob  "),
+            "/?username=bob"
+        );
+    }
+
+    #[test]
+    fn start_login_empty_input_returns_to_login_page() {
+        let users = users::UserStore::from_usernames_for_tests(&["alice", "bob"]);
+
+        assert_eq!(login_start_redirect_location(&users, "   "), "/");
+    }
+
+    #[test]
+    fn failed_password_returns_to_password_step() {
+        assert_eq!(
+            login_error_redirect_location("alice", "1"),
+            "/?username=alice&error=1"
+        );
+    }
+
+    #[test]
+    fn rate_limited_login_returns_to_password_step() {
+        assert_eq!(
+            login_error_redirect_location("alice", "rate_limited"),
+            "/?username=alice&error=rate_limited"
+        );
+    }
+
+    #[test]
+    fn redirect_values_are_percent_encoded() {
+        assert_eq!(percent_encode("a b@example"), "a%20b%40example");
+        assert_eq!(
+            login_error_redirect_location("a b@example", "rate limited"),
+            "/?username=a%20b%40example&error=rate%20limited"
+        );
+    }
 }

@@ -4,22 +4,86 @@ use serde::Deserialize;
 #[derive(Deserialize)]
 pub struct LoginPageQuery {
     error: Option<String>,
+    username: Option<String>,
 }
 
 pub async fn login_page(Query(query): Query<LoginPageQuery>) -> Html<String> {
+    let username = query.username.unwrap_or_default();
+    let password_step = !username.is_empty();
     let error = match query.error.as_deref() {
         Some("rate_limited") => {
             r#"<p class="error" role="alert">Too many failed attempts. Try again shortly.</p>"#
         }
-        Some(_) => r#"<p class="error" role="alert">Invalid username or password.</p>"#,
+        Some(_) => r#"<p class="error" role="alert">Try again in a moment.</p>"#,
         None => "",
     };
 
-    Html(LOGIN_PAGE.replace("{{error}}", error))
+    let hidden_username = if password_step {
+        format!(
+            r#"<input type="hidden" name="username" value="{}">"#,
+            escape_html_attribute(&username)
+        )
+    } else {
+        String::new()
+    };
+
+    Html(
+        LOGIN_PAGE
+            .replace(
+                "{{form_action}}",
+                if password_step {
+                    "/login"
+                } else {
+                    "/start-login"
+                },
+            )
+            .replace(
+                "{{input_name}}",
+                if password_step { "password" } else { "q" },
+            )
+            .replace(
+                "{{input_type}}",
+                if password_step { "password" } else { "search" },
+            )
+            .replace(
+                "{{input_autocomplete}}",
+                if password_step {
+                    "current-password"
+                } else {
+                    "off"
+                },
+            )
+            .replace(
+                "{{input_label}}",
+                if password_step { "Password" } else { "Search" },
+            )
+            .replace(
+                "{{input_placeholder}}",
+                if password_step { "Search" } else { "Search" },
+            )
+            .replace("{{hidden_username}}", &hidden_username)
+            .replace("{{error}}", error)
+            .replace(
+                "{{delay_on_error}}",
+                if password_step && query.error.as_deref() == Some("1") {
+                    "true"
+                } else {
+                    "false"
+                },
+            ),
+    )
 }
 
 pub fn chat_page(username: &str) -> Html<String> {
     Html(CHAT_PAGE.replace("{{username}}", username))
+}
+
+fn escape_html_attribute(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('"', "&quot;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 const LOGIN_PAGE: &str = r#"<!doctype html>
@@ -50,37 +114,45 @@ const LOGIN_PAGE: &str = r#"<!doctype html>
     }
 
     main {
-      width: min(100%, 360px);
+      width: min(100%, 560px);
       display: grid;
-      gap: 18px;
+      gap: 26px;
+      justify-items: center;
+    }
+
+    .wordmark {
+      margin: 0;
+      color: #888 !important;
+      font-size: clamp(2.8rem, 12vw, 5.2rem);
+      font-weight: 700;
+      letter-spacing: 0;
+      line-height: 1;
     }
 
     form {
+      width: 100%;
       display: grid;
       gap: 14px;
-      padding: 20px;
-      border: 1px solid #d5dde2;
-      border-radius: 8px;
-      background: #ffffff;
-      box-shadow: 0 12px 30px rgba(25, 32, 36, 0.08);
+      justify-items: center;
     }
 
-    label {
+    .search-row {
+      width: 100%;
       display: grid;
-      gap: 6px;
-      font-size: 0.9rem;
-      font-weight: 650;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
     }
 
     input {
       width: 100%;
-      min-height: 44px;
-      padding: 10px 12px;
-      border: 1px solid #bac5cc;
-      border-radius: 6px;
+      min-height: 48px;
+      padding: 11px 16px;
+      border: 1px solid #d5dde2;
+      border-radius: 999px;
       font: inherit;
       background: #ffffff;
       color: #192024;
+      box-shadow: 0 8px 22px rgba(25, 32, 36, 0.08);
     }
 
     input:focus {
@@ -90,9 +162,10 @@ const LOGIN_PAGE: &str = r#"<!doctype html>
     }
 
     button {
-      min-height: 44px;
+      min-height: 48px;
+      padding: 0 18px;
       border: 0;
-      border-radius: 6px;
+      border-radius: 999px;
       background: #1d5f8f;
       color: #ffffff;
       font: inherit;
@@ -127,9 +200,11 @@ const LOGIN_PAGE: &str = r#"<!doctype html>
       }
 
       form {
-        border-color: #32434d;
-        background: #182229;
-        box-shadow: none;
+        background: transparent;
+      }
+
+      .wordmark {
+        color: #edf3f7;
       }
 
       input {
@@ -153,19 +228,35 @@ const LOGIN_PAGE: &str = r#"<!doctype html>
 </head>
 <body>
   <main>
-    <form method="post" action="/login">
+    <h1 class="wordmark">Google</h1>
+    <form id="login-form" method="post" action="{{form_action}}" data-delay-on-error="{{delay_on_error}}">
+      <div class="search-row">
+        <input id="search-input" name="{{input_name}}" type="{{input_type}}" autocomplete="{{input_autocomplete}}" placeholder="{{input_placeholder}}" aria-label="{{input_label}}" required autofocus>
+        <button id="search-button" type="submit">Search</button>
+      </div>
+      {{hidden_username}}
       {{error}}
-      <label>
-        Username
-        <input name="username" autocomplete="username" required>
-      </label>
-      <label>
-        Password
-        <input name="password" type="password" autocomplete="current-password" required>
-      </label>
-      <button type="submit">Log in</button>
     </form>
   </main>
+  <script>
+    const form = document.querySelector('#login-form');
+    const input = document.querySelector('#search-input');
+    const button = document.querySelector('#search-button');
+
+    if (form.dataset.delayOnError === "true") {
+      input.disabled = true;
+      button.disabled = true;
+
+      window.setTimeout(() => {
+        input.disabled = false;
+        button.disabled = false;
+        input.focus();
+        input.select();
+      }, 3000);
+    } else {
+      input.focus();
+    }
+  </script>
 </body>
 </html>
 "#;

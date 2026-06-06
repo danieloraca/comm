@@ -48,6 +48,25 @@ impl UserStore {
             .verify_password(password.as_bytes(), &hash)
             .is_ok()
     }
+
+    pub fn has_username(&self, username: &str) -> bool {
+        self.users.iter().any(|user| user.username == username)
+    }
+
+    #[cfg(test)]
+    pub fn from_usernames_for_tests(usernames: &[&str]) -> Self {
+        Self {
+            users: Arc::new(
+                usernames
+                    .iter()
+                    .map(|username| User {
+                        username: (*username).to_string(),
+                        password_hash: String::new(),
+                    })
+                    .collect(),
+            ),
+        }
+    }
 }
 
 struct User {
