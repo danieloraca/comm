@@ -228,7 +228,7 @@ const LOGIN_PAGE: &str = r#"<!doctype html>
 </head>
 <body>
   <main>
-    <h1 class="wordmark">Google</h1>
+    <h1 class="wordmark">Search</h1>
     <form id="login-form" method="post" action="{{form_action}}" data-delay-on-error="{{delay_on_error}}">
       <div class="search-row">
         <input id="search-input" name="{{input_name}}" type="{{input_type}}" autocomplete="{{input_autocomplete}}" placeholder="{{input_placeholder}}" aria-label="{{input_label}}" required autofocus>
