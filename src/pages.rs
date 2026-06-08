@@ -237,6 +237,13 @@ const LOGIN_PAGE: &str = r#"<!doctype html>
         color: #ffd4d4;
       }
     }
+
+    @media (max-width: 520px) {
+      body {
+        place-items: start center;
+        padding-top: 12vh;
+      }
+    }
   </style>
 </head>
 <body>
@@ -654,6 +661,8 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     .messages {
       min-height: 0;
       overflow: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
       display: flex;
       flex-direction: column;
       gap: 10px;
@@ -1076,7 +1085,6 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
       .messages {
         gap: 6px;
-        margin: 0 -4px;
         padding: 6px 4px;
         border: 0;
         border-radius: 0;
@@ -1655,7 +1663,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
       item.append(meta, body, menu);
       messagesEl.append(item);
-      messagesEl.scrollTop = messagesEl.scrollHeight;
+      scrollMessagesToBottom();
 
       if (message.from !== currentUser) {
         readObserver.observe(item);
@@ -1691,9 +1699,15 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       activityLogView.hidden = true;
       messagesEl.classList.remove("activity-mode");
       typingEl.hidden = false;
-      messagesEl.scrollTop = messagesEl.scrollHeight;
+      scrollMessagesToBottom();
       input.focus();
       scanReadableMessages();
+    }
+
+    function scrollMessagesToBottom() {
+      requestAnimationFrame(() => {
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      });
     }
 
     function formatActivityLog(log) {
