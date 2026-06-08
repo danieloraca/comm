@@ -241,7 +241,7 @@ const LOGIN_PAGE: &str = r#"<!doctype html>
     @media (max-width: 520px) {
       body {
         place-items: start center;
-        padding-top: 12vh;
+        padding-top: 25vh;
       }
     }
   </style>
