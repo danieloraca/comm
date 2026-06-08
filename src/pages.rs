@@ -1022,20 +1022,97 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         height: 100vh;
         height: 100dvh;
         min-height: 0;
+        gap: 8px;
+        padding: 8px;
         border-radius: 0;
         border-width: 0;
       }
 
+      header {
+        align-items: start;
+        gap: 8px;
+      }
+
+      .brand-mark {
+        width: 58px;
+        height: 37px;
+      }
+
+      .status {
+        font-size: 0.78rem;
+      }
+
+      .presence {
+        font-size: 0.76rem;
+      }
+
+      .header-actions {
+        gap: 6px;
+      }
+
+      .settings-button,
+      .logout-button {
+        min-height: 34px;
+        padding: 0 9px;
+        font-size: 0.86rem;
+      }
+
+      .messages {
+        gap: 6px;
+        margin: 0 -4px;
+        padding: 6px 4px;
+        border: 0;
+        border-radius: 0;
+      }
+
+      .message {
+        max-width: 88%;
+        gap: 2px;
+      }
+
+      .message-meta {
+        gap: 6px;
+        font-size: 0.66rem;
+      }
+
+      .message-meta strong {
+        font-size: 0.7rem;
+      }
+
+      .message-bubble {
+        padding: 6px 8px;
+        border-radius: 10px;
+      }
+
+      .message-bubble.emoji-only {
+        padding: 7px 10px;
+        font-size: 2.2rem;
+      }
+
+      .typing {
+        min-height: 14px;
+        font-size: 0.76rem;
+      }
+
       form {
         grid-template-columns: minmax(0, 1fr) auto;
+        gap: 6px;
       }
 
       .emoji-bar {
         display: none;
       }
 
-      header {
-        align-items: start;
+      textarea {
+        min-height: 40px;
+        padding: 8px 10px;
+        border-radius: 18px;
+      }
+
+      button {
+        min-height: 40px;
+        padding: 0 12px;
+        border-radius: 18px;
       }
     }
   </style>
