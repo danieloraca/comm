@@ -411,6 +411,10 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       font-size: 0.86rem;
     }
 
+    .status[hidden] {
+      display: none;
+    }
+
     .presence {
       display: inline-flex;
       align-items: center;
@@ -1144,7 +1148,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
             <circle class="brand-bird-eye" cx="86" cy="25" r="2.2"/>
           </svg>
         </h1>
-        <p class="status" id="status">Connecting as {{username}}</p>
+        <p class="status" id="status" hidden></p>
         <p class="presence">
           <span class="presence-dot" id="presence-dot"></span>
           <span id="presence-label">No one else online</span>
@@ -1322,13 +1326,15 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     logoutOnCloseInput.checked = localStorage.getItem(logoutOnCloseKey) === "true";
 
     socket.addEventListener("open", () => {
-      statusEl.textContent = `Connected as ${currentUser}`;
+      statusEl.hidden = true;
+      statusEl.textContent = "";
       resizeComposer();
       input.focus();
     });
 
     socket.addEventListener("close", () => {
       statusEl.textContent = "Disconnected";
+      statusEl.hidden = false;
       input.disabled = true;
       form.querySelector("button").disabled = true;
     });
