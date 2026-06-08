@@ -122,11 +122,28 @@ const LOGIN_PAGE: &str = r#"<!doctype html>
 
     .wordmark {
       margin: 0;
-      color: #888 !important;
       font-size: clamp(2.8rem, 12vw, 5.2rem);
       font-weight: 700;
       letter-spacing: 0;
       line-height: 1;
+    }
+
+    .wordmark span:nth-child(1),
+    .wordmark span:nth-child(4) {
+      color: #2f80ed;
+    }
+
+    .wordmark span:nth-child(2),
+    .wordmark span:nth-child(6) {
+      color: #d94841;
+    }
+
+    .wordmark span:nth-child(3) {
+      color: #f2b705;
+    }
+
+    .wordmark span:nth-child(5) {
+      color: #219653;
     }
 
     form {
@@ -203,10 +220,6 @@ const LOGIN_PAGE: &str = r#"<!doctype html>
         background: transparent;
       }
 
-      .wordmark {
-        color: #edf3f7;
-      }
-
       input {
         border-color: #48616f;
         background: #11181c;
@@ -228,7 +241,7 @@ const LOGIN_PAGE: &str = r#"<!doctype html>
 </head>
 <body>
   <main>
-    <h1 class="wordmark">Search</h1>
+    <h1 class="wordmark" aria-label="Search"><span>S</span><span>e</span><span>a</span><span>r</span><span>c</span><span>h</span></h1>
     <form id="login-form" method="post" action="{{form_action}}" data-delay-on-error="{{delay_on_error}}">
       <div class="search-row">
         <input id="search-input" name="{{input_name}}" type="{{input_type}}" autocomplete="{{input_autocomplete}}" placeholder="{{input_placeholder}}" aria-label="{{input_label}}" required autofocus>
