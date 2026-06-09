@@ -45,6 +45,8 @@ The app reads local files and bind settings from environment variables.
 | `COMM_USERS_FILE` | `users.toml` | Usernames and Argon2id password hashes |
 | `COMM_DATABASE_FILE` | `comm.sqlite3` | SQLite database path |
 | `COMM_MESSAGE_KEY_FILE` | `message.key` | Local encryption key path |
+| `COMM_ATTACHMENT_KEY_FILE` | `attachment.key` | Local attachment encryption key path |
+| `COMM_ATTACHMENTS_DIR` | `attachments` | Encrypted photo attachment directory |
 | `COMM_PRESENCE_SOUND` | unset | Optional sound file played with `afplay` when a user comes online/offline |
 
 For Tailscale access, run with a Tailscale bind address:
@@ -94,6 +96,7 @@ To change a password, generate a new hash, replace that user's `password_hash`, 
 - Login and chat use the dove logo mark instead of a text logo.
 - New WebSocket clients receive recent message history.
 - Messages are encrypted before being written to SQLite.
+- Photo attachments can be uploaded from the composer. Photos are encrypted with `attachment.key` before being written to `COMM_ATTACHMENTS_DIR`, and are served only through authenticated attachment routes.
 - `Delete for me` hides a message only for the requester.
 - `Delete for everyone` is allowed only for the sender and soft-deletes the message for both users.
 - Typing indicators are transient WebSocket events and are not stored.
@@ -132,10 +135,12 @@ Privacy Mode hides the browser UI; it does not destroy the authenticated session
 
 ## Security Notes
 
-- Keep `users.toml`, `comm.sqlite3`, and `message.key` private.
-- `users.toml`, `comm.sqlite3`, and `message.key` should not be committed.
+- Keep `users.toml`, `comm.sqlite3`, `message.key`, `attachment.key`, and the encrypted attachments directory private.
+- `users.toml`, `comm.sqlite3`, `message.key`, `attachment.key`, and `attachments/` should not be committed.
 - If someone copies only `comm.sqlite3`, message bodies should not be readable.
 - If someone copies both `comm.sqlite3` and `message.key`, they can decrypt message bodies.
+- If someone copies only the encrypted attachment files, photos should not be readable.
+- If someone copies both the encrypted attachment files and `attachment.key`, they can decrypt photos.
 - Login and Privacy Mode password failures are rate-limited in memory; the limit resets when the server restarts.
 - Close-tab logout uses browser `sendBeacon` when available and `fetch(... keepalive: true)` as a fallback. This is convenient but not guaranteed by browsers.
 - Tailscale protects network transport between devices, but the app still requires its own authentication.

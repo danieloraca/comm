@@ -5,21 +5,22 @@ use std::{
 };
 
 use axum::{
-    Form,
-    extract::State,
+    Form, Json,
+    extract::{Multipart, Path, State},
     http::{
         HeaderMap, HeaderValue, StatusCode,
-        header::{COOKIE, SET_COOKIE},
+        header::{CONTENT_TYPE, COOKIE, SET_COOKIE},
     },
     response::{IntoResponse, Redirect, Response},
 };
 use rand::random;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
 use crate::{chat, pages, store, users};
 
 const MAX_FAILED_LOGIN_ATTEMPTS: u32 = 5;
+const MAX_ATTACHMENT_BYTES: usize = 10 * 1024 * 1024;
 const LOGIN_COOLDOWN: Duration = Duration::from_secs(60);
 const SESSION_COOKIE: &str = "comm_session";
 
@@ -62,6 +63,14 @@ pub struct LoginStartForm {
 #[derive(Deserialize)]
 pub struct VerifyPasswordForm {
     password: String,
+}
+
+#[derive(Serialize)]
+pub struct AttachmentUploadResponse {
+    id: i64,
+    mime_type: String,
+    original_name: Option<String>,
+    size_bytes: i64,
 }
 
 pub async fn start_login(
@@ -126,6 +135,74 @@ pub async fn logout(State(state): State<AppState>, headers: HeaderMap) -> Respon
     response
 }
 
+pub async fn upload_attachment(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    mut multipart: Multipart,
+) -> Response {
+    let Some(username) = state.authenticated_user(&headers) else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+
+    while let Ok(Some(field)) = multipart.next_field().await {
+        if field.name() != Some("photo") {
+            continue;
+        }
+
+        let mime_type = field.content_type().map(str::to_owned).unwrap_or_default();
+        if !allowed_image_mime_type(&mime_type) {
+            return StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response();
+        }
+
+        let original_name = field.file_name().map(str::to_owned);
+        let Ok(bytes) = field.bytes().await else {
+            return StatusCode::BAD_REQUEST.into_response();
+        };
+
+        if bytes.is_empty() || bytes.len() > MAX_ATTACHMENT_BYTES {
+            return StatusCode::PAYLOAD_TOO_LARGE.into_response();
+        }
+
+        let Ok(attachment) = state
+            .store
+            .save_attachment(&username, original_name.as_deref(), &mime_type, &bytes)
+            .await
+        else {
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        };
+
+        return Json(AttachmentUploadResponse {
+            id: attachment.id,
+            mime_type: attachment.mime_type,
+            original_name: attachment.original_name,
+            size_bytes: attachment.size_bytes,
+        })
+        .into_response();
+    }
+
+    StatusCode::BAD_REQUEST.into_response()
+}
+
+pub async fn attachment(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> Response {
+    let Some(username) = state.authenticated_user(&headers) else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+
+    let Ok(Some(attachment)) = state.store.attachment_for_user(&username, id).await else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+
+    let Ok(content_type) = HeaderValue::from_str(&attachment.mime_type) else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+
+    ([(CONTENT_TYPE, content_type)], attachment.bytes).into_response()
+}
+
 pub async fn verify_password(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -146,6 +223,13 @@ pub async fn verify_password(
 
     clear_failed_logins(&state, &username);
     StatusCode::NO_CONTENT
+}
+
+fn allowed_image_mime_type(mime_type: &str) -> bool {
+    matches!(
+        mime_type,
+        "image/jpeg" | "image/png" | "image/webp" | "image/gif" | "image/heic" | "image/heif"
+    )
 }
 
 impl AppState {
