@@ -9,7 +9,7 @@ use axum::{
     extract::{Multipart, Path, State},
     http::{
         HeaderMap, HeaderValue, StatusCode,
-        header::{CONTENT_TYPE, COOKIE, SET_COOKIE},
+        header::{CACHE_CONTROL, CONTENT_TYPE, COOKIE, PRAGMA, SET_COOKIE},
     },
     response::{IntoResponse, Redirect, Response},
 };
@@ -20,7 +20,7 @@ use tokio::sync::broadcast;
 use crate::{chat, pages, store, users};
 
 const MAX_FAILED_LOGIN_ATTEMPTS: u32 = 5;
-const MAX_ATTACHMENT_BYTES: usize = 10 * 1024 * 1024;
+const MAX_ATTACHMENT_BYTES: usize = 20 * 1024 * 1024;
 const LOGIN_COOLDOWN: Duration = Duration::from_secs(60);
 const SESSION_COOKIE: &str = "comm_session";
 
@@ -113,10 +113,10 @@ pub async fn login(State(state): State<AppState>, Form(form): Form<LoginForm>) -
 }
 
 pub async fn chat(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    match state.authenticated_user(&headers) {
+    no_store_response(match state.authenticated_user(&headers) {
         Some(username) => pages::chat_page(&username).into_response(),
         None => Redirect::to("/").into_response(),
-    }
+    })
 }
 
 pub async fn logout(State(state): State<AppState>, headers: HeaderMap) -> Response {
@@ -132,7 +132,7 @@ pub async fn logout(State(state): State<AppState>, headers: HeaderMap) -> Respon
     response
         .headers_mut()
         .insert(SET_COOKIE, expired_session_cookie());
-    response
+    no_store_response(response)
 }
 
 pub async fn upload_attachment(
@@ -308,6 +308,17 @@ fn expired_session_cookie() -> HeaderValue {
     HeaderValue::from_static(
         "comm_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT",
     )
+}
+
+fn no_store_response(mut response: Response) -> Response {
+    response.headers_mut().insert(
+        CACHE_CONTROL,
+        HeaderValue::from_static("no-store, no-cache, must-revalidate, max-age=0"),
+    );
+    response
+        .headers_mut()
+        .insert(PRAGMA, HeaderValue::from_static("no-cache"));
+    response
 }
 
 fn create_session_token() -> String {
