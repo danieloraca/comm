@@ -17,6 +17,8 @@ pub fn router(state: auth::AppState) -> Router {
             post(auth::upload_attachment).layer(DefaultBodyLimit::max(21 * 1024 * 1024)),
         )
         .route("/attachments/{id}", get(auth::attachment))
+        .route("/backgrounds", get(auth::chat_backgrounds))
+        .route("/background/{filename}", get(auth::chat_background))
         .route("/verify-password", post(auth::verify_password))
         .route("/chat", get(auth::chat))
         .route("/ws", get(chat::websocket))

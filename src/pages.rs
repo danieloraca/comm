@@ -294,6 +294,8 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       --page-bg: #eef2f4;
       --app-bg: #ffffff;
       --surface-bg: #f8fafb;
+      --chat-bg-overlay: rgba(248, 250, 251, 0.68);
+      --chat-bg-image: url("/background/photo-1503756234508-e32369269deb.avif.jpg");
       --elevated-bg: #ffffff;
       --text: #192024;
       --muted: #53636d;
@@ -690,7 +692,12 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       padding: 12px;
       border: 1px solid var(--border);
       border-radius: 6px;
-      background: var(--surface-bg);
+      background-color: var(--surface-bg);
+      background-image:
+        linear-gradient(var(--chat-bg-overlay), var(--chat-bg-overlay)),
+        var(--chat-bg-image);
+      background-position: center;
+      background-size: cover;
     }
 
     .message {
@@ -1012,6 +1019,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         --page-bg: #11181c;
         --app-bg: #182229;
         --surface-bg: #11181c;
+        --chat-bg-overlay: rgba(17, 24, 28, 0.76);
         --elevated-bg: #182229;
         --text: #edf3f7;
         --muted: #afbdc5;
@@ -1041,6 +1049,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       --page-bg: #11181c;
       --app-bg: #182229;
       --surface-bg: #11181c;
+      --chat-bg-overlay: rgba(17, 24, 28, 0.76);
       --elevated-bg: #182229;
       --text: #edf3f7;
       --muted: #afbdc5;
@@ -1065,6 +1074,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       --page-bg: #20252a;
       --app-bg: #2a3036;
       --surface-bg: #22282e;
+      --chat-bg-overlay: rgba(34, 40, 46, 0.76);
       --elevated-bg: #303740;
       --text: #eef2f5;
       --muted: #b7c0c7;
@@ -1089,6 +1099,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       --page-bg: #2a0508;
       --app-bg: #3b090d;
       --surface-bg: #240407;
+      --chat-bg-overlay: rgba(36, 4, 7, 0.78);
       --elevated-bg: #4b0d13;
       --text: #fff5f5;
       --muted: #ffc0c0;
@@ -1268,6 +1279,13 @@ const CHAT_PAGE: &str = r##"<!doctype html>
               <button class="font-size-button" id="font-size-increase" type="button" title="Increase text size">+</button>
             </div>
           </div>
+          <label class="setting-row">
+            <span>Background</span>
+            <select class="setting-select" id="background-select">
+              <option value="photo-1503756234508-e32369269deb.avif.jpg">Photo 1</option>
+              <option value="none">None</option>
+            </select>
+          </label>
         </div>
         <div class="settings-section">
           <h3 class="settings-heading">Privacy Mode</h3>
@@ -1361,6 +1379,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     const settingsButton = document.querySelector("#settings-button");
     const settingsPanel = document.querySelector("#settings-panel");
     const themeSelect = document.querySelector("#theme-select");
+    const backgroundSelect = document.querySelector("#background-select");
     const fontSizeDecreaseButton = document.querySelector("#font-size-decrease");
     const fontSizeIncreaseButton = document.querySelector("#font-size-increase");
     const fontSizeValue = document.querySelector("#font-size-value");
@@ -1375,6 +1394,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
     const themeKey = `comm.theme.${currentUser}`;
+    const backgroundKey = `comm.background.${currentUser}`;
     const fontSizeKey = `comm.fontSize.${currentUser}`;
     const privacyModeKey = `comm.privacyMode.${currentUser}`;
     const logoutOnCloseKey = `comm.logoutOnClose.${currentUser}`;
@@ -1424,6 +1444,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
     themeSelect.value = localStorage.getItem(themeKey) || "system";
     applyTheme(themeSelect.value);
+    loadBackgroundOptions();
     applyFontSize(readFontSize());
     privacyModeInput.checked = localStorage.getItem(privacyModeKey) === "true";
     logoutOnCloseInput.checked = localStorage.getItem(logoutOnCloseKey) === "true";
@@ -1549,6 +1570,11 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     themeSelect.addEventListener("change", () => {
       localStorage.setItem(themeKey, themeSelect.value);
       applyTheme(themeSelect.value);
+    });
+
+    backgroundSelect.addEventListener("change", () => {
+      localStorage.setItem(backgroundKey, backgroundSelect.value);
+      applyChatBackground(backgroundSelect.value);
     });
 
     fontSizeDecreaseButton.addEventListener("click", () => {
@@ -2068,6 +2094,50 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       }
 
       document.documentElement.dataset.theme = theme;
+    }
+
+    async function loadBackgroundOptions() {
+      let backgrounds = [];
+
+      try {
+        const response = await fetch("/backgrounds", { credentials: "same-origin" });
+        if (response.ok) {
+          backgrounds = (await response.json()).backgrounds || [];
+        }
+      } catch {
+        backgrounds = [];
+      }
+
+      backgroundSelect.replaceChildren(
+        ...backgrounds.map((filename, index) => {
+          const option = document.createElement("option");
+          option.value = filename;
+          option.textContent = `Photo ${index + 1}`;
+          option.title = filename;
+          return option;
+        }),
+        new Option("None", "none")
+      );
+
+      const savedBackground = localStorage.getItem(backgroundKey);
+      const selectedBackground = backgrounds.includes(savedBackground)
+        ? savedBackground
+        : backgrounds[0] || "none";
+
+      backgroundSelect.value = selectedBackground;
+      applyChatBackground(selectedBackground);
+    }
+
+    function applyChatBackground(filename) {
+      if (!filename || filename === "none") {
+        document.documentElement.style.setProperty("--chat-bg-image", "none");
+        return;
+      }
+
+      document.documentElement.style.setProperty(
+        "--chat-bg-image",
+        `url("/background/${encodeURIComponent(filename)}")`
+      );
     }
 
     function readFontSize() {

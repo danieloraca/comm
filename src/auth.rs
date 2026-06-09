@@ -1,5 +1,7 @@
 use std::{
     collections::HashMap,
+    fs,
+    path::{Path as FsPath, PathBuf},
     sync::{Arc, RwLock},
     time::{Duration, Instant},
 };
@@ -21,6 +23,7 @@ use crate::{chat, pages, store, users};
 
 const MAX_FAILED_LOGIN_ATTEMPTS: u32 = 5;
 const MAX_ATTACHMENT_BYTES: usize = 20 * 1024 * 1024;
+const CHAT_BACKGROUND_DIR: &str = "background";
 const LOGIN_COOLDOWN: Duration = Duration::from_secs(60);
 const SESSION_COOKIE: &str = "comm_session";
 
@@ -71,6 +74,11 @@ pub struct AttachmentUploadResponse {
     mime_type: String,
     original_name: Option<String>,
     size_bytes: i64,
+}
+
+#[derive(Serialize)]
+pub struct BackgroundListResponse {
+    backgrounds: Vec<String>,
 }
 
 pub async fn start_login(
@@ -203,6 +211,48 @@ pub async fn attachment(
     ([(CONTENT_TYPE, content_type)], attachment.bytes).into_response()
 }
 
+pub async fn chat_backgrounds(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    if state.authenticated_user(&headers).is_none() {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+
+    Json(BackgroundListResponse {
+        backgrounds: list_chat_backgrounds(),
+    })
+    .into_response()
+}
+
+pub async fn chat_background(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(filename): Path<String>,
+) -> Response {
+    if state.authenticated_user(&headers).is_none() {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+
+    if !valid_background_filename(&filename) {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+
+    let path = FsPath::new(CHAT_BACKGROUND_DIR).join(&filename);
+    if !path.is_file() {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+
+    let Ok(bytes) = fs::read(path) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+
+    let content_type = background_content_type(&filename);
+
+    (
+        [(CONTENT_TYPE, HeaderValue::from_static(content_type))],
+        bytes,
+    )
+        .into_response()
+}
+
 pub async fn verify_password(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -230,6 +280,53 @@ fn allowed_image_mime_type(mime_type: &str) -> bool {
         mime_type,
         "image/jpeg" | "image/png" | "image/webp" | "image/gif" | "image/heic" | "image/heif"
     )
+}
+
+fn list_chat_backgrounds() -> Vec<String> {
+    let Ok(entries) = fs::read_dir(CHAT_BACKGROUND_DIR) else {
+        return Vec::new();
+    };
+
+    let mut backgrounds = entries
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let path = entry.path();
+            let filename = path.file_name()?.to_str()?.to_owned();
+
+            if path.is_file() && valid_background_filename(&filename) {
+                Some(filename)
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    backgrounds.sort();
+    backgrounds
+}
+
+fn valid_background_filename(filename: &str) -> bool {
+    !filename.is_empty()
+        && !filename.contains('/')
+        && !filename.contains('\\')
+        && !filename.starts_with('.')
+        && background_content_type(filename) != "application/octet-stream"
+}
+
+fn background_content_type(filename: &str) -> &'static str {
+    let path = PathBuf::from(filename);
+    match path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+    {
+        Some("jpg" | "jpeg") => "image/jpeg",
+        Some("png") => "image/png",
+        Some("webp") => "image/webp",
+        Some("gif") => "image/gif",
+        Some("avif") => "image/avif",
+        _ => "application/octet-stream",
+    }
 }
 
 impl AppState {
