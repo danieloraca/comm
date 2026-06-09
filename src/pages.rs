@@ -294,7 +294,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       --page-bg: #eef2f4;
       --app-bg: #ffffff;
       --surface-bg: #f8fafb;
-      --chat-bg-overlay: rgba(248, 250, 251, 0.68);
+      --message-pane-bg: transparent;
       --chat-bg-image: url("/background/photo-1503756234508-e32369269deb.avif.jpg");
       --elevated-bg: #ffffff;
       --text: #192024;
@@ -351,7 +351,10 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       padding: 20px;
       border: 1px solid var(--border);
       border-radius: 8px;
-      background: var(--app-bg);
+      background-color: var(--app-bg);
+      background-image: var(--chat-bg-image);
+      background-position: center;
+      background-size: cover;
       box-shadow: var(--shadow);
     }
 
@@ -466,17 +469,19 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     .settings-button {
       min-height: 36px;
       padding: 0 12px;
-      background: transparent;
+      background: var(--elevated-bg);
       color: var(--accent);
       border: 1px solid var(--control-border);
+      box-shadow: var(--menu-shadow);
     }
 
     .logout-button {
       min-height: 36px;
       padding: 0 12px;
-      background: transparent;
+      background: var(--elevated-bg);
       color: var(--accent);
       border: 1px solid var(--control-border);
+      box-shadow: var(--menu-shadow);
     }
 
     .settings-panel {
@@ -692,12 +697,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       padding: 12px;
       border: 1px solid var(--border);
       border-radius: 6px;
-      background-color: var(--surface-bg);
-      background-image:
-        linear-gradient(var(--chat-bg-overlay), var(--chat-bg-overlay)),
-        var(--chat-bg-image);
-      background-position: center;
-      background-size: cover;
+      background: var(--message-pane-bg);
     }
 
     .message {
@@ -1019,7 +1019,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         --page-bg: #11181c;
         --app-bg: #182229;
         --surface-bg: #11181c;
-        --chat-bg-overlay: rgba(17, 24, 28, 0.76);
+        --message-pane-bg: transparent;
         --elevated-bg: #182229;
         --text: #edf3f7;
         --muted: #afbdc5;
@@ -1049,7 +1049,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       --page-bg: #11181c;
       --app-bg: #182229;
       --surface-bg: #11181c;
-      --chat-bg-overlay: rgba(17, 24, 28, 0.76);
+      --message-pane-bg: transparent;
       --elevated-bg: #182229;
       --text: #edf3f7;
       --muted: #afbdc5;
@@ -1074,7 +1074,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       --page-bg: #20252a;
       --app-bg: #2a3036;
       --surface-bg: #22282e;
-      --chat-bg-overlay: rgba(34, 40, 46, 0.76);
+      --message-pane-bg: transparent;
       --elevated-bg: #303740;
       --text: #eef2f5;
       --muted: #b7c0c7;
@@ -1099,7 +1099,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       --page-bg: #2a0508;
       --app-bg: #3b090d;
       --surface-bg: #240407;
-      --chat-bg-overlay: rgba(36, 4, 7, 0.78);
+      --message-pane-bg: transparent;
       --elevated-bg: #4b0d13;
       --text: #fff5f5;
       --muted: #ffc0c0;
