@@ -1636,6 +1636,12 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       }
     });
 
+    window.addEventListener("pageshow", (event) => {
+      if (event.persisted) {
+        window.location.reload();
+      }
+    });
+
     window.addEventListener("blur", () => {
       if (privacyModeInput.checked) {
         lockPrivacyScreen();
