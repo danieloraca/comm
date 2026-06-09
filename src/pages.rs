@@ -607,6 +607,27 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       display: none;
     }
 
+    .photo-viewer {
+      position: fixed;
+      z-index: 20;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 14px;
+      background: #000000;
+      cursor: zoom-out;
+    }
+
+    .photo-viewer[hidden] {
+      display: none;
+    }
+
+    .photo-viewer img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+
     .privacy-content {
       width: min(100%, 320px);
       display: grid;
@@ -757,6 +778,19 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       text-underline-offset: 2px;
     }
 
+    .message-photo {
+      display: block;
+      width: min(100%, 320px);
+      max-height: 360px;
+      object-fit: contain;
+      border-radius: 6px;
+      cursor: zoom-in;
+    }
+
+    .message-photo + .message-text {
+      margin-top: 6px;
+    }
+
     .read-status {
       position: absolute;
       top: -4px;
@@ -831,7 +865,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
     form {
       display: grid;
-      grid-template-columns: 1fr auto;
+      grid-template-columns: auto 1fr auto;
       gap: 10px;
     }
 
@@ -841,6 +875,44 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       gap: 6px;
       overflow-x: auto;
       padding-bottom: 2px;
+    }
+
+    .attachment-draft {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 7px 9px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface-bg);
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+
+    .attachment-draft[hidden],
+    .photo-input {
+      display: none;
+    }
+
+    .upload-button {
+      width: 44px;
+      min-height: 44px;
+      padding: 0;
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--control-border);
+      font-size: 1.15rem;
+    }
+
+    .clear-attachment-button {
+      min-height: 28px;
+      padding: 0 8px;
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--control-border);
+      font-size: 0.78rem;
     }
 
     textarea {
@@ -1120,7 +1192,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       }
 
       form {
-        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-columns: auto minmax(0, 1fr) auto;
         gap: 6px;
       }
 
@@ -1131,6 +1203,12 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       textarea {
         min-height: 40px;
         padding: 8px 10px;
+        border-radius: 18px;
+      }
+
+      .upload-button {
+        width: 40px;
+        min-height: 40px;
         border-radius: 18px;
       }
 
@@ -1235,12 +1313,21 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         <button class="emoji-button" type="button" data-emoji="👀" title="Eyes">👀</button>
         <button class="emoji-button" type="button" data-emoji="🔥" title="Fire">🔥</button>
       </div>
+      <div class="attachment-draft" id="attachment-draft" hidden>
+        <span id="attachment-draft-label"></span>
+        <button class="clear-attachment-button" id="clear-attachment" type="button">Remove</button>
+      </div>
+      <input class="photo-input" id="photo-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif">
+      <button class="upload-button" id="upload-button" type="button" title="Add photo">+</button>
       <div class="input-wrap">
         <div class="emoji-suggestions" id="emoji-suggestions" role="listbox" hidden></div>
-        <textarea id="message" name="message" autocomplete="off" maxlength="2000" rows="1" required></textarea>
+        <textarea id="message" name="message" autocomplete="off" maxlength="2000" rows="1"></textarea>
       </div>
       <button type="submit">Send</button>
     </form>
+    <section class="photo-viewer" id="photo-viewer" hidden>
+      <img id="photo-viewer-image" alt="">
+    </section>
     <section class="privacy-screen" id="privacy-screen" hidden aria-live="polite">
       <div class="privacy-content" id="privacy-content" hidden>
         <h2>Chat locked</h2>
@@ -1261,9 +1348,16 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     const messagesEl = document.querySelector("#messages");
     const activityLogView = document.querySelector("#activity-log-view");
     const activityLogLines = document.querySelector("#activity-log-lines");
+    const photoViewer = document.querySelector("#photo-viewer");
+    const photoViewerImage = document.querySelector("#photo-viewer-image");
     const typingEl = document.querySelector("#typing");
     const form = document.querySelector("#chat-form");
     const input = document.querySelector("#message");
+    const photoInput = document.querySelector("#photo-input");
+    const uploadButton = document.querySelector("#upload-button");
+    const attachmentDraft = document.querySelector("#attachment-draft");
+    const attachmentDraftLabel = document.querySelector("#attachment-draft-label");
+    const clearAttachmentButton = document.querySelector("#clear-attachment");
     const settingsButton = document.querySelector("#settings-button");
     const settingsPanel = document.querySelector("#settings-panel");
     const themeSelect = document.querySelector("#theme-select");
@@ -1317,6 +1411,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     let selectedEmojiIndex = 0;
     let privacyTapCount = 0;
     let activityLogMode = false;
+    let pendingAttachment = null;
     const onlineUsers = new Set();
     const readMessageIds = new Set();
     const readObserver = new IntersectionObserver((entries) => {
@@ -1382,7 +1477,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       const rawBody = input.value.trim();
       const body = expandEmojiShortcodes(rawBody);
 
-      if (!body || socket.readyState !== WebSocket.OPEN) {
+      if ((!body && !pendingAttachment) || socket.readyState !== WebSocket.OPEN) {
         return;
       }
 
@@ -1394,8 +1489,13 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         return;
       }
 
-      socket.send(JSON.stringify({ type: "message", body }));
+      socket.send(JSON.stringify({
+        type: "message",
+        body,
+        attachment_id: pendingAttachment?.id ?? null,
+      }));
       input.value = "";
+      clearPendingAttachment();
       resizeComposer();
       sendTyping(false);
     });
@@ -1418,6 +1518,23 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     input.addEventListener("blur", () => sendTyping(false));
 
     input.addEventListener("click", updateEmojiSuggestions);
+
+    uploadButton.addEventListener("click", () => {
+      photoInput.click();
+    });
+
+    clearAttachmentButton.addEventListener("click", clearPendingAttachment);
+
+    photoInput.addEventListener("change", async () => {
+      const file = photoInput.files?.[0];
+
+      if (!file) {
+        return;
+      }
+
+      await uploadPhoto(file);
+      photoInput.value = "";
+    });
 
     settingsButton.addEventListener("click", () => {
       const willOpen = settingsPanel.hidden;
@@ -1463,6 +1580,8 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     });
 
     privacyForm.addEventListener("submit", verifyPrivacyPassword);
+
+    photoViewer.addEventListener("click", closePhotoViewer);
 
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter" && !event.shiftKey && emojiSuggestionsEl.hidden) {
@@ -1567,6 +1686,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       }
 
       if (event.key === "Escape") {
+        closePhotoViewer();
         closeSettings();
         closeMessageMenus();
         closeEmojiSuggestions();
@@ -1599,8 +1719,30 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
       const body = document.createElement("div");
       body.className = "message-bubble";
-      renderMessageBody(body, message.body);
-      body.classList.toggle("emoji-only", isSingleEmojiMessage(message.body));
+      if (message.attachment) {
+        const image = document.createElement("img");
+        image.className = "message-photo";
+        image.src = `/attachments/${message.attachment.id}`;
+        image.alt = message.attachment.original_name || "Attached photo";
+        image.loading = "lazy";
+        image.addEventListener("click", (event) => {
+          event.stopPropagation();
+          openPhotoViewer(image.src, image.alt);
+        });
+        body.append(image);
+      }
+
+      if (message.body) {
+        const text = document.createElement("div");
+        text.className = "message-text";
+        renderMessageBody(text, message.body);
+        body.append(text);
+      }
+
+      body.classList.toggle(
+        "emoji-only",
+        !message.attachment && isSingleEmojiMessage(message.body)
+      );
 
       if (message.from === currentUser) {
         const readStatus = document.createElement("span");
@@ -1708,6 +1850,87 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       requestAnimationFrame(() => {
         messagesEl.scrollTop = messagesEl.scrollHeight;
       });
+    }
+
+    async function uploadPhoto(file) {
+      if (!file.type.startsWith("image/")) {
+        attachmentDraft.hidden = false;
+        attachmentDraftLabel.textContent = "Choose an image file.";
+        return;
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        attachmentDraft.hidden = false;
+        attachmentDraftLabel.textContent = "Photo is too large. Max size is 10 MB.";
+        return;
+      }
+
+      uploadButton.disabled = true;
+      attachmentDraft.hidden = false;
+      attachmentDraftLabel.textContent = "Encrypting photo...";
+
+      const formData = new FormData();
+      formData.append("photo", file);
+
+      let response;
+      try {
+        response = await fetch("/attachments", {
+          method: "POST",
+          body: formData,
+          credentials: "same-origin",
+        });
+      } catch {
+        attachmentDraftLabel.textContent = "Photo upload failed. Check the connection.";
+        uploadButton.disabled = false;
+        return;
+      }
+
+      uploadButton.disabled = false;
+
+      if (!response.ok) {
+        attachmentDraftLabel.textContent = "Photo upload failed.";
+        return;
+      }
+
+      pendingAttachment = await response.json();
+      renderPendingAttachment();
+      input.focus();
+    }
+
+    function renderPendingAttachment() {
+      if (!pendingAttachment) {
+        attachmentDraft.hidden = true;
+        attachmentDraftLabel.textContent = "";
+        return;
+      }
+
+      attachmentDraft.hidden = false;
+      attachmentDraftLabel.textContent = pendingAttachment.original_name
+        ? `Photo ready: ${pendingAttachment.original_name}`
+        : "Photo ready";
+    }
+
+    function clearPendingAttachment() {
+      pendingAttachment = null;
+      renderPendingAttachment();
+    }
+
+    function openPhotoViewer(src, alt) {
+      closeMessageMenus();
+      closeEmojiSuggestions();
+      photoViewerImage.src = src;
+      photoViewerImage.alt = alt;
+      photoViewer.hidden = false;
+    }
+
+    function closePhotoViewer() {
+      if (photoViewer.hidden) {
+        return;
+      }
+
+      photoViewer.hidden = true;
+      photoViewerImage.removeAttribute("src");
+      photoViewerImage.alt = "";
     }
 
     function formatActivityLog(log) {

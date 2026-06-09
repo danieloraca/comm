@@ -1,3 +1,4 @@
+mod attachment_crypto;
 mod auth;
 mod chat;
 mod config;

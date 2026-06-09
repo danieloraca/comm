@@ -19,7 +19,7 @@ use tokio::sync::broadcast;
 
 use crate::{
     auth::AppState,
-    store::{ActivityLog, ReadReceipt, StoredMessage},
+    store::{ActivityLog, ReadReceipt, StoredAttachment, StoredMessage},
 };
 
 const MAX_MESSAGE_LEN: usize = 2_000;
@@ -60,8 +60,17 @@ pub struct ChatMessage {
     id: i64,
     from: String,
     body: String,
+    attachment: Option<ChatAttachment>,
     created_at: String,
     read_at: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ChatAttachment {
+    id: i64,
+    mime_type: String,
+    original_name: Option<String>,
+    size_bytes: i64,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -75,7 +84,10 @@ pub struct ActivityLogEntry {
 #[serde(tag = "type")]
 enum ClientEvent {
     #[serde(rename = "message")]
-    Message { body: String },
+    Message {
+        body: String,
+        attachment_id: Option<i64>,
+    },
     #[serde(rename = "delete_for_me")]
     DeleteForMe { id: i64 },
     #[serde(rename = "delete_for_everyone")]
@@ -107,20 +119,23 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
     let store = state.message_store();
     let send_username = username.clone();
 
-    if let Ok(history) = store.recent_messages(&username).await {
-        for message in history
-            .into_iter()
-            .map(ChatMessage::from)
-            .map(ServerEvent::Message)
-        {
-            let Ok(payload) = serde_json::to_string(&message) else {
-                continue;
-            };
+    match store.recent_messages(&username).await {
+        Ok(history) => {
+            for message in history
+                .into_iter()
+                .map(ChatMessage::from)
+                .map(ServerEvent::Message)
+            {
+                let Ok(payload) = serde_json::to_string(&message) else {
+                    continue;
+                };
 
-            if sender.send(Message::Text(payload.into())).await.is_err() {
-                return;
+                if sender.send(Message::Text(payload.into())).await.is_err() {
+                    return;
+                }
             }
         }
+        Err(error) => eprintln!("failed to load message history for {username}: {error}"),
     }
 
     let became_online = state.connect_user(&username);
@@ -198,14 +213,20 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
                 };
 
                 match event {
-                    ClientEvent::Message { body } => {
+                    ClientEvent::Message {
+                        body,
+                        attachment_id,
+                    } => {
                         let body = body.trim();
 
-                        if body.is_empty() || body.len() > MAX_MESSAGE_LEN {
+                        if (body.is_empty() && attachment_id.is_none())
+                            || body.len() > MAX_MESSAGE_LEN
+                        {
                             continue;
                         }
 
-                        let Ok(stored) = store.save_message(&username, body).await else {
+                        let Ok(stored) = store.save_message(&username, body, attachment_id).await
+                        else {
                             continue;
                         };
 
@@ -307,8 +328,20 @@ impl From<StoredMessage> for ChatMessage {
             id: message.id,
             from: message.sender,
             body: message.body,
+            attachment: message.attachment.map(ChatAttachment::from),
             created_at: message.created_at,
             read_at: message.read_at,
+        }
+    }
+}
+
+impl From<StoredAttachment> for ChatAttachment {
+    fn from(attachment: StoredAttachment) -> Self {
+        Self {
+            id: attachment.id,
+            mime_type: attachment.mime_type,
+            original_name: attachment.original_name,
+            size_bytes: attachment.size_bytes,
         }
     }
 }
