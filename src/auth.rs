@@ -20,7 +20,7 @@ use tokio::sync::broadcast;
 use crate::{chat, pages, store, users};
 
 const MAX_FAILED_LOGIN_ATTEMPTS: u32 = 5;
-const MAX_ATTACHMENT_BYTES: usize = 10 * 1024 * 1024;
+const MAX_ATTACHMENT_BYTES: usize = 20 * 1024 * 1024;
 const LOGIN_COOLDOWN: Duration = Duration::from_secs(60);
 const SESSION_COOKIE: &str = "comm_session";
 

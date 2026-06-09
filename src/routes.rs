@@ -14,7 +14,7 @@ pub fn router(state: auth::AppState) -> Router {
         .route("/logout", post(auth::logout))
         .route(
             "/attachments",
-            post(auth::upload_attachment).layer(DefaultBodyLimit::max(11 * 1024 * 1024)),
+            post(auth::upload_attachment).layer(DefaultBodyLimit::max(21 * 1024 * 1024)),
         )
         .route("/attachments/{id}", get(auth::attachment))
         .route("/verify-password", post(auth::verify_password))

@@ -1859,9 +1859,9 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         return;
       }
 
-      if (file.size > 10 * 1024 * 1024) {
+      if (file.size > 20 * 1024 * 1024) {
         attachmentDraft.hidden = false;
-        attachmentDraftLabel.textContent = "Photo is too large. Max size is 10 MB.";
+        attachmentDraftLabel.textContent = "Photo is too large. Max size is 20 MB.";
         return;
       }
 
