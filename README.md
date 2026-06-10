@@ -101,7 +101,7 @@ To change a password, generate a new hash, replace that user's `password_hash`, 
 - `Delete for everyone` is allowed only for the sender and soft-deletes the message for both users.
 - Typing indicators are transient WebSocket events and are not stored.
 - The online dot is based on active WebSocket connections.
-- Online/offline presence transitions are stored in the local `activity_logs` table and printed in the terminal.
+- Online/offline presence transitions are stored in the local `activity_logs` table and printed in the terminal using the configured app timezone.
 - Read receipts are stored locally and are sent only after an incoming message is visible while the chat is unlocked. Sent messages show a gray dot until read, then a green dot.
 - Emoji toolbar and shortcodes are supported for common reactions such as `:smile`, `:heart`, `:hug`, `:lol`, `:punch`, `:face-punch`, `:kiss`, `:smirk`, `:eyeroll`, `:cry`, `:angry`, `:fire`, `:yes`, `:no`, `:eyes`, `:facepalm`, `:shrug`, `:middle-finger`, `:finger`, and `:fu`.
 - The emoji toolbar is hidden on small mobile screens; shortcode suggestions still work when typing.
@@ -118,6 +118,14 @@ Type `/activityLogs` in the message composer to switch the message pane to recen
 ```
 
 Press `q` or `Escape` to return to the normal messages view. Activity log history starts from the first online/offline event after the feature is running; older terminal-only lines are not backfilled.
+
+Activity timestamps default to `Europe/London`, including daylight saving time. To use a different timezone, set `COMM_TIMEZONE` to an IANA timezone name before starting the service:
+
+```bash
+COMM_TIMEZONE=Europe/London cargo run
+```
+
+When the app starts, it prints the timezone used for timestamps after the listening address.
 
 ## Privacy Mode
 

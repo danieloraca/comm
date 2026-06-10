@@ -1,6 +1,7 @@
 mod attachment_crypto;
 mod auth;
 mod chat;
+mod clock;
 mod config;
 mod crypto;
 mod pages;
@@ -19,6 +20,7 @@ async fn main() {
         .unwrap_or_else(|error| panic!("failed to bind {}: {error}", config.bind_addr));
 
     println!("listening on http://{}", config.bind_addr);
+    println!("timestamps use timezone {}", clock::configured_timezone());
 
     let state = auth::AppState::new().await;
 

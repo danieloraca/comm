@@ -12,13 +12,13 @@ use axum::{
     http::HeaderMap,
     response::{IntoResponse, Response},
 };
-use chrono::Local;
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
 use crate::{
     auth::AppState,
+    clock::activity_timestamp,
     store::{ActivityLog, ReadReceipt, StoredAttachment, StoredMessage},
 };
 
@@ -294,10 +294,7 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
 async fn log_presence(store: &crate::store::MessageStore, username: &str, status: &str) {
     let _ = store.record_activity_log(username, status).await;
     play_presence_sound();
-    println!(
-        "{} user {status}: {username}",
-        Local::now().format("%Y-%m-%d %H:%M:%S")
-    );
+    println!("{} user {status}: {username}", activity_timestamp());
 }
 
 fn play_presence_sound() {

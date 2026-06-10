@@ -1,10 +1,10 @@
 use std::{env, fs, path::PathBuf};
 
-use chrono::Local;
 use sqlx::{FromRow, SqlitePool, sqlite::SqliteConnectOptions};
 
 use crate::{
     attachment_crypto::AttachmentCrypto,
+    clock::activity_timestamp,
     crypto::{CryptoError, MessageCrypto},
 };
 
@@ -369,7 +369,7 @@ impl MessageStore {
         username: &str,
         action: &str,
     ) -> sqlx::Result<ActivityLog> {
-        let occurred_at = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let occurred_at = activity_timestamp();
 
         sqlx::query_as::<_, ActivityLog>(
             r#"
