@@ -12,7 +12,7 @@ use axum::{
     http::HeaderMap,
     response::{IntoResponse, Response},
 };
-use chrono::Utc;
+use chrono::Local;
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
@@ -296,7 +296,7 @@ async fn log_presence(store: &crate::store::MessageStore, username: &str, status
     play_presence_sound();
     println!(
         "{} user {status}: {username}",
-        Utc::now().format("%Y-%m-%d %H:%M:%S")
+        Local::now().format("%Y-%m-%d %H:%M:%S")
     );
 }
 

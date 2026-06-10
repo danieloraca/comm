@@ -1,5 +1,6 @@
 use std::{env, fs, path::PathBuf};
 
+use chrono::Local;
 use sqlx::{FromRow, SqlitePool, sqlite::SqliteConnectOptions};
 
 use crate::{
@@ -368,13 +369,16 @@ impl MessageStore {
         username: &str,
         action: &str,
     ) -> sqlx::Result<ActivityLog> {
+        let occurred_at = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+
         sqlx::query_as::<_, ActivityLog>(
             r#"
-            INSERT INTO activity_logs (username, action)
-            VALUES (?, ?)
+            INSERT INTO activity_logs (occurred_at, username, action)
+            VALUES (?, ?, ?)
             RETURNING occurred_at, username, action
             "#,
         )
+        .bind(occurred_at)
         .bind(username)
         .bind(action)
         .fetch_one(&self.pool)
@@ -513,7 +517,7 @@ async fn ensure_activity_logs_table(pool: &SqlitePool) {
         r#"
         CREATE TABLE IF NOT EXISTS activity_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            occurred_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
+            occurred_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now', 'localtime')),
             username TEXT NOT NULL,
             action TEXT NOT NULL
         )
