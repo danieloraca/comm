@@ -106,7 +106,7 @@ To change a password, generate a new hash, replace that user's `password_hash`, 
 - Emoji toolbar and shortcodes are supported for common reactions such as `:smile`, `:heart`, `:hug`, `:lol`, `:punch`, `:face-punch`, `:kiss`, `:smirk`, `:eyeroll`, `:cry`, `:angry`, `:fire`, `:yes`, `:no`, `:eyes`, `:facepalm`, `:shrug`, `:middle-finger`, `:finger`, and `:fu`.
 - The emoji toolbar is hidden on small mobile screens; shortcode suggestions still work when typing.
 - The message composer supports multiline input with Shift+Enter; Enter sends.
-- Per-user appearance preferences are stored in the browser, including `System`, `Light`, `Dark`, `Dim`, and `Red` themes plus text size controls from 90% to 130%. The logo color adapts so it remains visible in light and dark themes.
+- Per-user appearance preferences are stored in the browser, including `System`, `Light`, `Dark`, `Dim`, and `Red` themes plus text size controls from 90% to 180%. The logo color adapts so it remains visible in light and dark themes.
 
 ## Activity Logs
 

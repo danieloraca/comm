@@ -1398,8 +1398,9 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     const fontSizeKey = `comm.fontSize.${currentUser}`;
     const privacyModeKey = `comm.privacyMode.${currentUser}`;
     const logoutOnCloseKey = `comm.logoutOnClose.${currentUser}`;
+    const preferenceMaxAgeSeconds = 60 * 60 * 24 * 365;
     const fontSizeMin = 90;
-    const fontSizeMax = 130;
+    const fontSizeMax = 180;
     const fontSizeStep = 10;
     const emojiShortcodes = [
       { code: "angry", emoji: "😡" },
@@ -1442,12 +1443,12 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       });
     }, { root: messagesEl, threshold: 0.6 });
 
-    themeSelect.value = localStorage.getItem(themeKey) || "system";
+    themeSelect.value = readPreference(themeKey, "system");
     applyTheme(themeSelect.value);
     loadBackgroundOptions();
     applyFontSize(readFontSize());
-    privacyModeInput.checked = localStorage.getItem(privacyModeKey) === "true";
-    logoutOnCloseInput.checked = localStorage.getItem(logoutOnCloseKey) === "true";
+    privacyModeInput.checked = readPreference(privacyModeKey, "false") === "true";
+    logoutOnCloseInput.checked = readPreference(logoutOnCloseKey, "false") === "true";
 
     socket.addEventListener("open", () => {
       statusEl.hidden = true;
@@ -1564,16 +1565,16 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     });
 
     logoutOnCloseInput.addEventListener("change", () => {
-      localStorage.setItem(logoutOnCloseKey, String(logoutOnCloseInput.checked));
+      writePreference(logoutOnCloseKey, String(logoutOnCloseInput.checked));
     });
 
     themeSelect.addEventListener("change", () => {
-      localStorage.setItem(themeKey, themeSelect.value);
+      writePreference(themeKey, themeSelect.value);
       applyTheme(themeSelect.value);
     });
 
     backgroundSelect.addEventListener("change", () => {
-      localStorage.setItem(backgroundKey, backgroundSelect.value);
+      writePreference(backgroundKey, backgroundSelect.value);
       applyChatBackground(backgroundSelect.value);
     });
 
@@ -1586,7 +1587,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     });
 
     privacyModeInput.addEventListener("change", () => {
-      localStorage.setItem(privacyModeKey, String(privacyModeInput.checked));
+      writePreference(privacyModeKey, String(privacyModeInput.checked));
     });
 
     privacyScreen.addEventListener("click", (event) => {
@@ -1653,6 +1654,8 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     });
 
     window.addEventListener("beforeunload", () => {
+      persistCurrentPreferences();
+
       if (socket.readyState === WebSocket.OPEN && typingSent) {
         socket.send(JSON.stringify({ type: "typing", is_typing: false }));
       }
@@ -1661,6 +1664,8 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         logoutFromClosingTab();
       }
     });
+
+    window.addEventListener("pagehide", persistCurrentPreferences);
 
     window.addEventListener("pageshow", (event) => {
       if (event.persisted) {
@@ -2087,6 +2092,61 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       settingsButton.setAttribute("aria-expanded", "false");
     }
 
+    function readPreference(key, fallback) {
+      try {
+        const stored = localStorage.getItem(key);
+        if (stored !== null) {
+          return stored;
+        }
+      } catch {
+        // Ignore storage failures and fall back to the preference cookie.
+      }
+
+      const cookieName = `${preferenceCookieName(key)}=`;
+      const cookie = document.cookie
+        .split("; ")
+        .find((part) => part.startsWith(cookieName));
+
+      if (!cookie) {
+        return fallback;
+      }
+
+      try {
+        return decodeURIComponent(cookie.slice(cookieName.length));
+      } catch {
+        return fallback;
+      }
+    }
+
+    function writePreference(key, value) {
+      const stringValue = String(value);
+
+      try {
+        localStorage.setItem(key, stringValue);
+      } catch {
+        // Cookie fallback below keeps preferences usable if localStorage is blocked.
+      }
+
+      document.cookie = [
+        `${preferenceCookieName(key)}=${encodeURIComponent(stringValue)}`,
+        "Path=/",
+        `Max-Age=${preferenceMaxAgeSeconds}`,
+        "SameSite=Strict",
+      ].join("; ");
+    }
+
+    function preferenceCookieName(key) {
+      return `comm_pref_${encodeURIComponent(key)}`;
+    }
+
+    function persistCurrentPreferences() {
+      writePreference(themeKey, themeSelect.value);
+      writePreference(backgroundKey, backgroundSelect.value);
+      writePreference(fontSizeKey, String(readFontSize()));
+      writePreference(privacyModeKey, String(privacyModeInput.checked));
+      writePreference(logoutOnCloseKey, String(logoutOnCloseInput.checked));
+    }
+
     function applyTheme(theme) {
       if (theme === "system") {
         document.documentElement.removeAttribute("data-theme");
@@ -2119,8 +2179,10 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         new Option("None", "none")
       );
 
-      const savedBackground = localStorage.getItem(backgroundKey);
-      const selectedBackground = backgrounds.includes(savedBackground)
+      const savedBackground = readPreference(backgroundKey, "");
+      const selectedBackground = savedBackground === "none"
+        ? "none"
+        : backgrounds.includes(savedBackground)
         ? savedBackground
         : backgrounds[0] || "none";
 
@@ -2141,13 +2203,13 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     }
 
     function readFontSize() {
-      const stored = Number(localStorage.getItem(fontSizeKey));
+      const stored = Number(readPreference(fontSizeKey, ""));
       return clampFontSize(Number.isFinite(stored) ? stored : 100);
     }
 
     function setFontSize(value) {
       const nextValue = clampFontSize(value);
-      localStorage.setItem(fontSizeKey, String(nextValue));
+      writePreference(fontSizeKey, String(nextValue));
       applyFontSize(nextValue);
     }
 
