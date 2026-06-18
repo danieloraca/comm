@@ -19,6 +19,7 @@ use tokio::sync::broadcast;
 use crate::{
     auth::AppState,
     clock::activity_timestamp,
+    link_preview::{self, LinkPreview},
     store::{ActivityLog, ReadReceipt, StoredAttachment, StoredMessage},
 };
 
@@ -53,6 +54,8 @@ pub enum ServerEvent {
         username: String,
         logs: Vec<ActivityLogEntry>,
     },
+    #[serde(rename = "link_preview")]
+    LinkPreview { id: i64, preview: ChatLinkPreview },
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -61,6 +64,7 @@ pub struct ChatMessage {
     from: String,
     body: String,
     attachment: Option<ChatAttachment>,
+    link_preview: Option<ChatLinkPreview>,
     created_at: String,
     read_at: Option<String>,
 }
@@ -71,6 +75,15 @@ pub struct ChatAttachment {
     mime_type: String,
     original_name: Option<String>,
     size_bytes: i64,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ChatLinkPreview {
+    url: String,
+    title: Option<String>,
+    description: Option<String>,
+    site_name: Option<String>,
+    image_url: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -229,8 +242,32 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
                         else {
                             continue;
                         };
+                        let message_id = stored.id;
+                        let body = body.to_owned();
 
                         let _ = chat_tx.send(ServerEvent::Message(ChatMessage::from(stored)));
+
+                        if let Some(url) = link_preview::first_url(&body) {
+                            let store = store.clone();
+                            let chat_tx = chat_tx.clone();
+                            tokio::spawn(async move {
+                                let Some(preview) = link_preview::fetch(&url).await else {
+                                    return;
+                                };
+
+                                let Ok(true) = store
+                                    .update_message_link_preview(message_id, &preview)
+                                    .await
+                                else {
+                                    return;
+                                };
+
+                                let _ = chat_tx.send(ServerEvent::LinkPreview {
+                                    id: message_id,
+                                    preview: ChatLinkPreview::from(preview),
+                                });
+                            });
+                        }
                     }
                     ClientEvent::DeleteForMe { id } => {
                         let Ok(true) = store.hide_message_for_user(&username, id).await else {
@@ -326,6 +363,7 @@ impl From<StoredMessage> for ChatMessage {
             from: message.sender,
             body: message.body,
             attachment: message.attachment.map(ChatAttachment::from),
+            link_preview: message.link_preview.map(ChatLinkPreview::from),
             created_at: message.created_at,
             read_at: message.read_at,
         }
@@ -339,6 +377,18 @@ impl From<StoredAttachment> for ChatAttachment {
             mime_type: attachment.mime_type,
             original_name: attachment.original_name,
             size_bytes: attachment.size_bytes,
+        }
+    }
+}
+
+impl From<LinkPreview> for ChatLinkPreview {
+    fn from(preview: LinkPreview) -> Self {
+        Self {
+            url: preview.url,
+            title: preview.title,
+            description: preview.description,
+            site_name: preview.site_name,
+            image_url: preview.image_url,
         }
     }
 }

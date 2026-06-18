@@ -4,6 +4,7 @@ mod chat;
 mod clock;
 mod config;
 mod crypto;
+mod link_preview;
 mod pages;
 mod routes;
 mod store;

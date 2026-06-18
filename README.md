@@ -97,6 +97,7 @@ To change a password, generate a new hash, replace that user's `password_hash`, 
 - New WebSocket clients receive recent message history.
 - Messages are encrypted before being written to SQLite.
 - Photo attachments can be uploaded from the composer. Photos are encrypted with `attachment.key` before being written to `COMM_ATTACHMENTS_DIR`, and are served only through authenticated attachment routes.
+- Messages containing an `http://` or `https://` URL get a lightweight link preview when metadata is available. Preview metadata is fetched in the background with system `curl` and stored encrypted with the message key.
 - `Delete for me` hides a message only for the requester.
 - `Delete for everyone` is allowed only for the sender and soft-deletes the message for both users.
 - Typing indicators are transient WebSocket events and are not stored.
@@ -126,6 +127,12 @@ COMM_TIMEZONE=Europe/London cargo run
 ```
 
 When the app starts, it prints the timezone used for timestamps after the listening address.
+
+## Link Previews
+
+Link previews avoid Rust HTTP/HTML dependencies to keep the binary small. The app sends the message immediately, then runs `curl` in the background with a short timeout and response size cap. If metadata is found, the message bubble is updated with a compact preview card. YouTube previews use oEmbed metadata and can include a thumbnail.
+
+If `curl` is not installed or the URL cannot be fetched, the message still sends normally and no preview is shown.
 
 ## Privacy Mode
 

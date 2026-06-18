@@ -798,6 +798,70 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       margin-top: 6px;
     }
 
+    .link-preview {
+      display: grid;
+      gap: 7px;
+      margin-top: 8px;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text);
+      text-decoration: none;
+      white-space: normal;
+    }
+
+    .link-preview:hover {
+      border-color: var(--accent);
+      text-decoration: none;
+    }
+
+    .link-preview-site,
+    .link-preview-description {
+      color: var(--muted);
+      font-size: 0.76rem;
+      line-height: 1.25;
+    }
+
+    .link-preview-title {
+      font-weight: 800;
+      line-height: 1.25;
+    }
+
+    .link-preview-description {
+      display: -webkit-box;
+      overflow: hidden;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+
+    .link-preview-image-wrap {
+      position: relative;
+      display: block;
+      width: min(100%, 420px);
+      overflow: hidden;
+      border-radius: 7px;
+      background: var(--panel-bg);
+    }
+
+    .link-preview-image {
+      display: block;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+    }
+
+    .link-preview-play {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: rgba(255, 255, 255, 0.86);
+      font-size: 3rem;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.55);
+      pointer-events: none;
+    }
+
     .read-status {
       position: absolute;
       top: -4px;
@@ -1492,6 +1556,10 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       if (serverEvent.type === "activity_logs") {
         showActivityLogs(serverEvent.logs || []);
       }
+
+      if (serverEvent.type === "link_preview") {
+        upsertLinkPreview(serverEvent.id, serverEvent.preview);
+      }
     });
 
     form.addEventListener("submit", (event) => {
@@ -1776,9 +1844,13 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         body.append(text);
       }
 
+      if (message.link_preview) {
+        body.append(createLinkPreview(message.link_preview));
+      }
+
       body.classList.toggle(
         "emoji-only",
-        !message.attachment && isSingleEmojiMessage(message.body)
+        !message.attachment && !message.link_preview && isSingleEmojiMessage(message.body)
       );
 
       if (message.from === currentUser) {
@@ -2015,6 +2087,71 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       if (lastIndex < value.length) {
         container.append(document.createTextNode(value.slice(lastIndex)));
       }
+    }
+
+    function upsertLinkPreview(messageId, preview) {
+      const item = document.querySelector(`[data-message-id="${messageId}"]`);
+      const bubble = item?.querySelector(".message-bubble");
+
+      if (!bubble || !preview) {
+        return;
+      }
+
+      bubble.querySelector(".link-preview")?.remove();
+      bubble.append(createLinkPreview(preview));
+      bubble.classList.remove("emoji-only");
+      scrollMessagesToBottom();
+    }
+
+    function createLinkPreview(preview) {
+      const card = document.createElement("a");
+      card.className = "link-preview";
+      card.href = preview.url;
+      card.target = "_blank";
+      card.rel = "noopener noreferrer";
+
+      if (preview.site_name) {
+        const site = document.createElement("span");
+        site.className = "link-preview-site";
+        site.textContent = preview.site_name;
+        card.append(site);
+      }
+
+      const title = document.createElement("span");
+      title.className = "link-preview-title";
+      title.textContent = preview.title || preview.url;
+      card.append(title);
+
+      if (preview.description) {
+        const description = document.createElement("span");
+        description.className = "link-preview-description";
+        description.textContent = preview.description;
+        card.append(description);
+      }
+
+      if (preview.image_url) {
+        const imageWrap = document.createElement("span");
+        imageWrap.className = "link-preview-image-wrap";
+
+        const image = document.createElement("img");
+        image.className = "link-preview-image";
+        image.src = preview.image_url;
+        image.alt = preview.title || "Link preview image";
+        image.loading = "lazy";
+        image.referrerPolicy = "no-referrer";
+        imageWrap.append(image);
+
+        if ((preview.site_name || "").toLowerCase().includes("youtube")) {
+          const play = document.createElement("span");
+          play.className = "link-preview-play";
+          play.textContent = "▶";
+          imageWrap.append(play);
+        }
+
+        card.append(imageWrap);
+      }
+
+      return card;
     }
 
     function trimTrailingUrlPunctuation(value) {

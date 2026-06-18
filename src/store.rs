@@ -6,6 +6,7 @@ use crate::{
     attachment_crypto::AttachmentCrypto,
     clock::activity_timestamp,
     crypto::{CryptoError, MessageCrypto},
+    link_preview::LinkPreview,
 };
 
 const DEFAULT_DATABASE_FILE: &str = "comm.sqlite3";
@@ -75,6 +76,7 @@ impl MessageStore {
 
         ensure_encrypted_columns(&pool).await;
         ensure_message_attachment_column(&pool).await;
+        ensure_link_preview_columns(&pool).await;
         ensure_attachments_table(&pool).await;
         ensure_hidden_messages_table(&pool).await;
         ensure_read_receipts_table(&pool).await;
@@ -128,6 +130,8 @@ impl MessageStore {
                 body_ciphertext,
                 body_nonce,
                 attachment_id,
+                link_preview_ciphertext,
+                link_preview_nonce,
                 created_at,
                 NULL AS read_at,
                 NULL AS attachment_mime_type,
@@ -155,6 +159,8 @@ impl MessageStore {
                 body_ciphertext,
                 body_nonce,
                 attachment_id,
+                link_preview_ciphertext,
+                link_preview_nonce,
                 created_at,
                 read_at,
                 attachment_mime_type,
@@ -168,6 +174,8 @@ impl MessageStore {
                     messages.body_ciphertext,
                     messages.body_nonce,
                     messages.attachment_id,
+                    messages.link_preview_ciphertext,
+                    messages.link_preview_nonce,
                     messages.created_at,
                     attachments.mime_type AS attachment_mime_type,
                     attachments.original_name AS attachment_original_name,
@@ -203,6 +211,34 @@ impl MessageStore {
         }
 
         Ok(messages)
+    }
+
+    pub async fn update_message_link_preview(
+        &self,
+        id: i64,
+        preview: &LinkPreview,
+    ) -> sqlx::Result<bool> {
+        let plaintext =
+            serde_json::to_string(preview).expect("link preview should serialize to JSON");
+        let encrypted = self
+            .crypto
+            .encrypt(&plaintext)
+            .expect("link preview encryption should not fail");
+
+        let result = sqlx::query(
+            r#"
+            UPDATE messages
+            SET link_preview_ciphertext = ?, link_preview_nonce = ?
+            WHERE id = ? AND deleted_at IS NULL
+            "#,
+        )
+        .bind(encrypted.ciphertext)
+        .bind(encrypted.nonce)
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(result.rows_affected() > 0)
     }
 
     pub async fn save_attachment(
@@ -426,9 +462,22 @@ impl MessageStore {
                 original_name: row.attachment_original_name,
                 size_bytes: row.attachment_size_bytes.unwrap_or_default(),
             }),
+            link_preview: self.decrypt_link_preview(
+                row.link_preview_ciphertext.as_deref(),
+                row.link_preview_nonce.as_deref(),
+            ),
             created_at: row.created_at,
             read_at: row.read_at,
         }
+    }
+
+    fn decrypt_link_preview(
+        &self,
+        ciphertext: Option<&[u8]>,
+        nonce: Option<&[u8]>,
+    ) -> Option<LinkPreview> {
+        let plaintext = self.crypto.decrypt(ciphertext?, nonce?).ok()?;
+        serde_json::from_str(&plaintext).ok()
     }
 
     async fn encrypt_existing_row(&self, id: i64, body: &str) {
@@ -534,6 +583,7 @@ pub struct StoredMessage {
     pub sender: String,
     pub body: String,
     pub attachment: Option<StoredAttachment>,
+    pub link_preview: Option<LinkPreview>,
     pub created_at: String,
     pub read_at: Option<String>,
 }
@@ -573,6 +623,8 @@ struct MessageRow {
     body_ciphertext: Option<Vec<u8>>,
     body_nonce: Option<Vec<u8>>,
     attachment_id: Option<i64>,
+    link_preview_ciphertext: Option<Vec<u8>>,
+    link_preview_nonce: Option<Vec<u8>>,
     created_at: String,
     read_at: Option<String>,
     attachment_mime_type: Option<String>,
@@ -634,6 +686,36 @@ async fn ensure_message_attachment_column(pool: &SqlitePool) {
             .execute(pool)
             .await
             .unwrap_or_else(|error| panic!("failed to add attachment_id column: {error}"));
+    }
+}
+
+async fn ensure_link_preview_columns(pool: &SqlitePool) {
+    let existing_columns: Vec<String> =
+        sqlx::query_scalar("SELECT name FROM pragma_table_info('messages')")
+            .fetch_all(pool)
+            .await
+            .unwrap_or_else(|error| panic!("failed to inspect message schema: {error}"));
+
+    if !existing_columns
+        .iter()
+        .any(|column| column == "link_preview_ciphertext")
+    {
+        sqlx::query("ALTER TABLE messages ADD COLUMN link_preview_ciphertext BLOB")
+            .execute(pool)
+            .await
+            .unwrap_or_else(|error| {
+                panic!("failed to add link_preview_ciphertext column: {error}")
+            });
+    }
+
+    if !existing_columns
+        .iter()
+        .any(|column| column == "link_preview_nonce")
+    {
+        sqlx::query("ALTER TABLE messages ADD COLUMN link_preview_nonce BLOB")
+            .execute(pool)
+            .await
+            .unwrap_or_else(|error| panic!("failed to add link_preview_nonce column: {error}"));
     }
 }
 
