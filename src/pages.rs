@@ -816,6 +816,16 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       text-decoration: none;
     }
 
+    .link-preview.has-image {
+      padding: 0;
+      border: 0;
+      background: transparent;
+    }
+
+    .link-preview.has-image:hover {
+      filter: brightness(1.04);
+    }
+
     .link-preview-site,
     .link-preview-description {
       color: var(--muted);
@@ -841,7 +851,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       width: min(100%, 420px);
       overflow: hidden;
       border-radius: 7px;
-      background: var(--panel-bg);
+      background: transparent;
     }
 
     .link-preview-image {
@@ -880,6 +890,12 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
     .message.own .message-bubble {
       background: var(--own-message-bg);
+    }
+
+    .message-bubble.preview-only,
+    .message.own .message-bubble.preview-only {
+      padding: 0;
+      background: transparent;
     }
 
     .message time {
@@ -1806,6 +1822,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       const item = document.createElement("article");
       item.className = message.from === currentUser ? "message own" : "message";
       item.dataset.messageId = message.id;
+      item.dataset.messageBody = message.body || "";
 
       const meta = document.createElement("div");
       meta.className = "message-meta";
@@ -1837,7 +1854,10 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         body.append(image);
       }
 
-      if (message.body) {
+      const isPreviewOnly = message.link_preview && isOnlyPreviewUrl(message.body, message.link_preview.url);
+      body.classList.toggle("preview-only", Boolean(isPreviewOnly));
+
+      if (message.body && !isPreviewOnly) {
         const text = document.createElement("div");
         text.className = "message-text";
         renderMessageBody(text, message.body);
@@ -2098,9 +2118,24 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       }
 
       bubble.querySelector(".link-preview")?.remove();
+      const isPreviewOnly = isOnlyPreviewUrl(item.dataset.messageBody || "", preview.url);
+      bubble.classList.toggle("preview-only", isPreviewOnly);
+
+      if (isPreviewOnly) {
+        bubble.querySelector(".message-text")?.remove();
+      }
+
       bubble.append(createLinkPreview(preview));
       bubble.classList.remove("emoji-only");
       scrollMessagesToBottom();
+    }
+
+    function isOnlyPreviewUrl(body, previewUrl) {
+      if (!body || !previewUrl) {
+        return false;
+      }
+
+      return trimTrailingUrlPunctuation(body.trim()) === trimTrailingUrlPunctuation(previewUrl.trim());
     }
 
     function createLinkPreview(preview) {
@@ -2109,6 +2144,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       card.href = preview.url;
       card.target = "_blank";
       card.rel = "noopener noreferrer";
+      card.classList.toggle("has-image", Boolean(preview.image_url));
 
       if (preview.site_name) {
         const site = document.createElement("span");
