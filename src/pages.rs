@@ -453,7 +453,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     }
 
     .typing:empty {
-      display: none;
+      visibility: hidden;
     }
 
     .logout-form {
