@@ -1833,9 +1833,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       const sentAt = document.createElement("time");
       const date = new Date(message.created_at);
       sentAt.dateTime = message.created_at;
-      sentAt.textContent = Number.isNaN(date.getTime())
-        ? message.created_at
-        : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      sentAt.textContent = formatMessageTimestamp(message.created_at);
 
       meta.append(from, sentAt);
 
@@ -1979,6 +1977,22 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       requestAnimationFrame(() => {
         messagesEl.scrollTop = messagesEl.scrollHeight;
       });
+    }
+
+    function formatMessageTimestamp(value) {
+      const date = new Date(value);
+
+      if (Number.isNaN(date.getTime())) {
+        return value;
+      }
+
+      const time = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+      if (date.toDateString() === new Date().toDateString()) {
+        return time;
+      }
+
+      return `${date.toLocaleDateString([], { day: "2-digit", month: "short", year: "numeric" })} ${time}`;
     }
 
     async function uploadPhoto(file) {
