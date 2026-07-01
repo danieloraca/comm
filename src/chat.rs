@@ -331,7 +331,12 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
 async fn log_presence(store: &crate::store::MessageStore, username: &str, status: &str) {
     let _ = store.record_activity_log(username, status).await;
     play_presence_sound();
-    println!("{} user {status}: {username}", activity_timestamp());
+    let status = match status {
+        "online" => "in",
+        "offline" => "out",
+        other => other,
+    };
+    println!("{} {username} {status}", activity_timestamp());
 }
 
 fn play_presence_sound() {
