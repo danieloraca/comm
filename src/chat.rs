@@ -24,6 +24,7 @@ use crate::{
 };
 
 const MAX_MESSAGE_LEN: usize = 2_000;
+const HISTORY_BATCH_SIZE: usize = 100;
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
@@ -53,6 +54,13 @@ pub enum ServerEvent {
         #[serde(skip)]
         username: String,
         logs: Vec<ActivityLogEntry>,
+    },
+    #[serde(rename = "older_messages")]
+    OlderMessages {
+        #[serde(skip)]
+        username: String,
+        messages: Vec<ChatMessage>,
+        has_more: bool,
     },
     #[serde(rename = "link_preview")]
     LinkPreview { id: i64, preview: ChatLinkPreview },
@@ -111,6 +119,8 @@ enum ClientEvent {
     Read { id: i64 },
     #[serde(rename = "activity_logs")]
     ActivityLogs,
+    #[serde(rename = "older_messages")]
+    OlderMessages { before_id: i64 },
 }
 
 pub async fn websocket(
@@ -192,6 +202,16 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
                     if matches!(
                         &event,
                         ServerEvent::ActivityLogs {
+                            username: target_username,
+                            ..
+                        } if target_username != &send_username
+                    ) {
+                        continue;
+                    }
+
+                    if matches!(
+                        &event,
+                        ServerEvent::OlderMessages {
                             username: target_username,
                             ..
                         } if target_username != &send_username
@@ -308,6 +328,18 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
                         let _ = chat_tx.send(ServerEvent::ActivityLogs {
                             username: username.clone(),
                             logs: logs.into_iter().map(ActivityLogEntry::from).collect(),
+                        });
+                    }
+                    ClientEvent::OlderMessages { before_id } => {
+                        let Ok(messages) = store.messages_before(&username, before_id).await else {
+                            continue;
+                        };
+                        let has_more = messages.len() >= HISTORY_BATCH_SIZE;
+
+                        let _ = chat_tx.send(ServerEvent::OlderMessages {
+                            username: username.clone(),
+                            messages: messages.into_iter().map(ChatMessage::from).collect(),
+                            has_more,
                         });
                     }
                 }

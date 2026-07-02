@@ -213,6 +213,76 @@ impl MessageStore {
         Ok(messages)
     }
 
+    pub async fn messages_before(
+        &self,
+        username: &str,
+        before_id: i64,
+    ) -> sqlx::Result<Vec<StoredMessage>> {
+        let rows = sqlx::query_as::<_, MessageRow>(
+            r#"
+            SELECT
+                id,
+                sender,
+                body,
+                body_ciphertext,
+                body_nonce,
+                attachment_id,
+                link_preview_ciphertext,
+                link_preview_nonce,
+                created_at,
+                read_at,
+                attachment_mime_type,
+                attachment_original_name,
+                attachment_size_bytes
+            FROM (
+                SELECT
+                    messages.id,
+                    messages.sender,
+                    messages.body,
+                    messages.body_ciphertext,
+                    messages.body_nonce,
+                    messages.attachment_id,
+                    messages.link_preview_ciphertext,
+                    messages.link_preview_nonce,
+                    messages.created_at,
+                    attachments.mime_type AS attachment_mime_type,
+                    attachments.original_name AS attachment_original_name,
+                    attachments.size_bytes AS attachment_size_bytes,
+                    (
+                        SELECT max(read_at)
+                        FROM read_receipts
+                        WHERE message_id = messages.id
+                        AND username != messages.sender
+                    ) AS read_at
+                FROM messages
+                LEFT JOIN attachments ON attachments.id = messages.attachment_id
+                WHERE messages.deleted_at IS NULL
+                AND messages.id < ?
+                AND messages.id NOT IN (
+                    SELECT message_id
+                    FROM hidden_messages
+                    WHERE username = ?
+                )
+                ORDER BY messages.id DESC
+                LIMIT ?
+            )
+            ORDER BY id ASC
+            "#,
+        )
+        .bind(before_id)
+        .bind(username)
+        .bind(HISTORY_LIMIT)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut messages = Vec::with_capacity(rows.len());
+        for row in rows {
+            messages.push(self.decrypt_row(row).await);
+        }
+
+        Ok(messages)
+    }
+
     pub async fn update_message_link_preview(
         &self,
         id: i64,

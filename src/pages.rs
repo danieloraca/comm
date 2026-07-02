@@ -1512,6 +1512,8 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     let selectedEmojiIndex = 0;
     let privacyTapCount = 0;
     let activityLogMode = false;
+    let loadingOlderMessages = false;
+    let hasMoreOlderMessages = true;
     let pendingAttachment = null;
     const onlineUsers = new Set();
     const readMessageIds = new Set();
@@ -1576,6 +1578,10 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       if (serverEvent.type === "link_preview") {
         upsertLinkPreview(serverEvent.id, serverEvent.preview);
       }
+
+      if (serverEvent.type === "older_messages") {
+        prependOlderMessages(serverEvent.messages || [], serverEvent.has_more);
+      }
     });
 
     form.addEventListener("submit", (event) => {
@@ -1624,6 +1630,12 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     input.addEventListener("blur", () => sendTyping(false));
 
     input.addEventListener("click", updateEmojiSuggestions);
+
+    messagesEl.addEventListener("scroll", () => {
+      if (messagesEl.scrollTop <= 80) {
+        requestOlderMessages();
+      }
+    });
 
     uploadButton.addEventListener("click", () => {
       photoInput.click();
@@ -1814,10 +1826,13 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       }
     });
 
-    function appendMessage(message) {
+    function appendMessage(message, options = {}) {
       if (document.querySelector(`[data-message-id="${message.id}"]`)) {
-        return;
+        return null;
       }
+
+      const prepend = Boolean(options.prepend);
+      const shouldScroll = options.scroll !== false;
 
       const item = document.createElement("article");
       item.className = message.from === currentUser ? "message own" : "message";
@@ -1931,13 +1946,24 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       });
 
       item.append(meta, body, menu);
-      messagesEl.append(item);
-      scrollMessagesToBottom();
+
+      if (prepend) {
+        const firstMessage = messagesEl.querySelector(".message");
+        messagesEl.insertBefore(item, firstMessage);
+      } else {
+        messagesEl.append(item);
+      }
+
+      if (shouldScroll) {
+        scrollMessagesToBottom();
+      }
 
       if (message.from !== currentUser) {
         readObserver.observe(item);
         markMessageRead(item);
       }
+
+      return item;
     }
 
     function requestActivityLogs() {
@@ -1949,6 +1975,48 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       closeMessageMenus();
       closeEmojiSuggestions();
       socket.send(JSON.stringify({ type: "activity_logs" }));
+    }
+
+    function requestOlderMessages() {
+      if (
+        activityLogMode
+        || loadingOlderMessages
+        || !hasMoreOlderMessages
+        || socket.readyState !== WebSocket.OPEN
+      ) {
+        return;
+      }
+
+      const oldestId = oldestLoadedMessageId();
+      if (!Number.isFinite(oldestId)) {
+        return;
+      }
+
+      loadingOlderMessages = true;
+      socket.send(JSON.stringify({ type: "older_messages", before_id: oldestId }));
+    }
+
+    function prependOlderMessages(messages, hasMore) {
+      const previousHeight = messagesEl.scrollHeight;
+      const previousTop = messagesEl.scrollTop;
+
+      messages.forEach((message) => {
+        appendMessage(message, { prepend: true, scroll: false });
+      });
+
+      hasMoreOlderMessages = Boolean(hasMore) && messages.length > 0;
+      loadingOlderMessages = false;
+
+      requestAnimationFrame(() => {
+        messagesEl.scrollTop = messagesEl.scrollHeight - previousHeight + previousTop;
+        scanReadableMessages();
+      });
+    }
+
+    function oldestLoadedMessageId() {
+      const firstMessage = messagesEl.querySelector(".message");
+      const id = Number(firstMessage?.dataset.messageId);
+      return Number.isFinite(id) ? id : NaN;
     }
 
     function showActivityLogs(logs) {
