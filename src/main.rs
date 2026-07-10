@@ -5,6 +5,7 @@ mod clock;
 mod config;
 mod crypto;
 mod link_preview;
+mod notifier;
 mod pages;
 mod routes;
 mod store;

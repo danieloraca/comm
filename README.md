@@ -48,6 +48,8 @@ The app reads local files and bind settings from environment variables.
 | `COMM_ATTACHMENT_KEY_FILE` | `attachment.key` | Local attachment encryption key path |
 | `COMM_ATTACHMENTS_DIR` | `attachments` | Encrypted photo attachment directory |
 | `COMM_PRESENCE_SOUND` | unset | Optional sound file played with `afplay` when a user comes online/offline |
+| `COMM_NTFY_TOPIC` | unset | Optional ntfy topic for phone push notifications when a user comes online/offline |
+| `COMM_NTFY_SERVER` | `https://ntfy.sh` | Optional ntfy server base URL |
 
 For Tailscale access, run with a Tailscale bind address:
 
@@ -62,6 +64,27 @@ COMM_PRESENCE_SOUND=/System/Library/Sounds/Glass.aiff cargo run --bin comm
 ```
 
 If `COMM_PRESENCE_SOUND` is unset, the app falls back to the terminal bell.
+
+For phone push notifications through ntfy, subscribe to a long random private topic in the ntfy phone app, then start the server with:
+
+```bash
+COMM_NTFY_TOPIC=comm-long-random-private-topic cargo run --bin comm
+```
+
+The app sends presence notifications only. Notification text intentionally uses a different short format from terminal logs:
+
+```text
+m1 up
+m1 down
+```
+
+If running through systemd on a Raspberry Pi, add the topic to the service file:
+
+```ini
+Environment=COMM_NTFY_TOPIC=comm-long-random-private-topic
+```
+
+With the public `ntfy.sh` service, the topic name is the secret. Use a long random topic and do not use message text, passwords, or personal details in notification content.
 
 ## Users And Passwords
 
@@ -103,6 +126,7 @@ To change a password, generate a new hash, replace that user's `password_hash`, 
 - Typing indicators are transient WebSocket events and are not stored.
 - The online dot is based on active WebSocket connections.
 - Online/offline presence transitions are stored in the local `activity_logs` table and printed in the terminal using the configured app timezone.
+- If `COMM_NTFY_TOPIC` is configured, online/offline presence transitions are also sent as ntfy phone push notifications. Numbered usernames such as `u1` and `u2` are displayed as `m1` and `m2` in ntfy notifications, with `up` and `down` status text.
 - Read receipts are stored locally and are sent only after an incoming message is visible while the chat is unlocked. Sent messages show a gray dot until read, then a green dot.
 - Emoji toolbar and shortcodes are supported for common reactions such as `:smile`, `:heart`, `:hug`, `:lol`, `:punch`, `:face-punch`, `:kiss`, `:smirk`, `:eyeroll`, `:cry`, `:angry`, `:fire`, `:yes`, `:no`, `:eyes`, `:facepalm`, `:shrug`, `:middle-finger`, `:finger`, and `:fu`.
 - The emoji toolbar is hidden on small mobile screens; shortcode suggestions still work when typing.

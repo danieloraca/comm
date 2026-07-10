@@ -20,6 +20,7 @@ use crate::{
     auth::AppState,
     clock::activity_timestamp,
     link_preview::{self, LinkPreview},
+    notifier,
     store::{ActivityLog, ReadReceipt, StoredAttachment, StoredMessage},
 };
 
@@ -368,6 +369,7 @@ async fn log_presence(store: &crate::store::MessageStore, username: &str, status
         "offline" => "out",
         other => other,
     };
+    notifier::notify_presence(username, status);
     println!("{} {username} {status}", activity_timestamp());
 }
 
