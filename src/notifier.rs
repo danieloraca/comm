@@ -82,8 +82,6 @@ async fn publish_ntfy(url: &str, body: &str) -> Result<(), String> {
             .arg("--data-binary")
             .arg(body)
             .arg("-H")
-            .arg("Title: Comm")
-            .arg("-H")
             .arg("Tags: bust_in_silhouette")
             .arg(url)
             .stdout(Stdio::null())
