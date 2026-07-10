@@ -10,13 +10,11 @@ pub fn notify_presence(username: &str, status: &str) {
         return;
     };
 
-    let body = format!(
-        "{} {}",
-        notification_username(username),
-        notification_status(status)
-    );
+    let status = notification_status(status);
+    let body = format!("{} {status}", notification_username(username));
+    let tag = notification_tag(status).to_owned();
     tokio::spawn(async move {
-        if let Err(error) = publish_ntfy(&config.url, &body).await {
+        if let Err(error) = publish_ntfy(&config.url, &body, tag).await {
             eprintln!("failed to send ntfy presence notification: {error}");
         }
     });
@@ -70,7 +68,15 @@ fn notification_status(status: &str) -> &str {
     }
 }
 
-async fn publish_ntfy(url: &str, body: &str) -> Result<(), String> {
+fn notification_tag(status: &str) -> &str {
+    match status {
+        "up" => "chart_with_upwards_trend",
+        "down" => "chart_with_downwards_trend",
+        _ => "chart_with_upwards_trend",
+    }
+}
+
+async fn publish_ntfy(url: &str, body: &str, tag: String) -> Result<(), String> {
     let status = time::timeout(
         NTFY_TIMEOUT,
         Command::new("curl")
@@ -82,7 +88,7 @@ async fn publish_ntfy(url: &str, body: &str) -> Result<(), String> {
             .arg("--data-binary")
             .arg(body)
             .arg("-H")
-            .arg("Tags: bust_in_silhouette")
+            .arg(format!("Tags: {tag}"))
             .arg(url)
             .stdout(Stdio::null())
             .stderr(Stdio::null())
@@ -101,7 +107,7 @@ async fn publish_ntfy(url: &str, body: &str) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{NtfyConfig, notification_status, notification_username};
+    use super::{NtfyConfig, notification_status, notification_tag, notification_username};
 
     #[test]
     fn ntfy_config_uses_default_server() {
@@ -146,5 +152,11 @@ mod tests {
         assert_eq!(notification_status("offline"), "down");
         assert_eq!(notification_status("in"), "up");
         assert_eq!(notification_status("out"), "down");
+    }
+
+    #[test]
+    fn notification_tag_uses_market_charts() {
+        assert_eq!(notification_tag("up"), "chart_with_upwards_trend");
+        assert_eq!(notification_tag("down"), "chart_with_downwards_trend");
     }
 }
