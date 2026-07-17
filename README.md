@@ -158,6 +158,22 @@ Link previews avoid Rust HTTP/HTML dependencies to keep the binary small. The ap
 
 If `curl` is not installed or the URL cannot be fetched, the message still sends normally and no preview is shown.
 
+## Backfill Image Thumbnails
+
+New photo uploads include encrypted chat thumbnails automatically. To create thumbnails for older photos, run the one-off backfill command on the server. Stop the service first so the database and attachment directory are quiet:
+
+```bash
+cd /opt/comm
+sudo systemctl stop comm
+COMM_DATABASE_FILE=/opt/comm/comm.sqlite3 \
+COMM_ATTACHMENT_KEY_FILE=/opt/comm/attachment.key \
+COMM_ATTACHMENTS_DIR=/opt/comm/attachments \
+cargo run --release --bin backfill_thumbnails
+sudo systemctl start comm
+```
+
+The command only processes attachments missing thumbnails. Unsupported image formats are skipped and reported.
+
 ## Privacy Mode
 
 Privacy Mode is available from the chat Settings menu.
