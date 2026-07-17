@@ -1716,9 +1716,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       }
     });
 
-    photoViewerImage.addEventListener("click", (event) => {
-      event.stopPropagation();
-    });
+    photoViewerImage.addEventListener("click", closePhotoViewer);
 
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter" && !event.shiftKey && emojiSuggestionsEl.hidden) {
