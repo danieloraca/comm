@@ -618,11 +618,12 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       position: fixed;
       z-index: 20;
       inset: 0;
-      display: grid;
-      place-items: center;
+      overflow: auto;
       padding: 14px;
       background: #000000;
       cursor: zoom-out;
+      overscroll-behavior: contain;
+      touch-action: pan-x pan-y pinch-zoom;
     }
 
     .photo-viewer[hidden] {
@@ -630,9 +631,14 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     }
 
     .photo-viewer img {
-      max-width: 100%;
-      max-height: 100%;
-      object-fit: contain;
+      display: block;
+      width: auto;
+      height: auto;
+      max-width: none;
+      max-height: none;
+      margin: auto;
+      cursor: grab;
+      touch-action: pan-x pan-y pinch-zoom;
     }
 
     .privacy-content {
@@ -1704,7 +1710,15 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
     privacyForm.addEventListener("submit", verifyPrivacyPassword);
 
-    photoViewer.addEventListener("click", closePhotoViewer);
+    photoViewer.addEventListener("click", (event) => {
+      if (event.target === photoViewer) {
+        closePhotoViewer();
+      }
+    });
+
+    photoViewerImage.addEventListener("click", (event) => {
+      event.stopPropagation();
+    });
 
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter" && !event.shiftKey && emojiSuggestionsEl.hidden) {
@@ -2174,9 +2188,12 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     function openPhotoViewer(src, alt) {
       closeMessageMenus();
       closeEmojiSuggestions();
+      photoViewer.scrollTop = 0;
+      photoViewer.scrollLeft = 0;
       photoViewerImage.src = src;
       photoViewerImage.alt = alt;
       photoViewer.hidden = false;
+      photoViewerImage.addEventListener("load", centerPhotoViewerImage, { once: true });
     }
 
     function closePhotoViewer() {
@@ -2187,6 +2204,13 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       photoViewer.hidden = true;
       photoViewerImage.removeAttribute("src");
       photoViewerImage.alt = "";
+    }
+
+    function centerPhotoViewerImage() {
+      requestAnimationFrame(() => {
+        photoViewer.scrollLeft = Math.max(0, (photoViewer.scrollWidth - photoViewer.clientWidth) / 2);
+        photoViewer.scrollTop = Math.max(0, (photoViewer.scrollHeight - photoViewer.clientHeight) / 2);
+      });
     }
 
     function formatActivityLog(log) {
