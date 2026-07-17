@@ -78,6 +78,7 @@ impl MessageStore {
         ensure_message_attachment_column(&pool).await;
         ensure_link_preview_columns(&pool).await;
         ensure_attachments_table(&pool).await;
+        ensure_attachment_thumbnail_columns(&pool).await;
         ensure_hidden_messages_table(&pool).await;
         ensure_read_receipts_table(&pool).await;
         ensure_activity_logs_table(&pool).await;
@@ -317,6 +318,7 @@ impl MessageStore {
         original_name: Option<&str>,
         mime_type: &str,
         bytes: &[u8],
+        thumbnail: Option<(&str, &[u8])>,
     ) -> sqlx::Result<StoredAttachment> {
         let encrypted = self
             .attachment_crypto
@@ -327,10 +329,41 @@ impl MessageStore {
 
         fs::write(&path, encrypted.ciphertext).map_err(sqlx::Error::Io)?;
 
+        let thumbnail = if let Some((thumbnail_mime_type, thumbnail_bytes)) = thumbnail {
+            let encrypted_thumbnail = self
+                .attachment_crypto
+                .encrypt(thumbnail_bytes)
+                .expect("attachment thumbnail encryption should not fail");
+            let thumbnail_stored_name = random_stored_name();
+            let thumbnail_path = self.attachments_dir.join(&thumbnail_stored_name);
+
+            fs::write(&thumbnail_path, encrypted_thumbnail.ciphertext).map_err(sqlx::Error::Io)?;
+
+            Some((
+                thumbnail_stored_name,
+                thumbnail_mime_type,
+                thumbnail_bytes.len() as i64,
+                encrypted_thumbnail.nonce,
+            ))
+        } else {
+            None
+        };
+
         sqlx::query_as::<_, StoredAttachment>(
             r#"
-            INSERT INTO attachments (sender, stored_name, original_name, mime_type, size_bytes, nonce)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO attachments (
+                sender,
+                stored_name,
+                original_name,
+                mime_type,
+                size_bytes,
+                nonce,
+                thumbnail_stored_name,
+                thumbnail_mime_type,
+                thumbnail_size_bytes,
+                thumbnail_nonce
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             RETURNING id, mime_type, original_name, size_bytes
             "#,
         )
@@ -340,6 +373,10 @@ impl MessageStore {
         .bind(mime_type)
         .bind(bytes.len() as i64)
         .bind(encrypted.nonce)
+        .bind(thumbnail.as_ref().map(|thumbnail| &thumbnail.0))
+        .bind(thumbnail.as_ref().map(|thumbnail| thumbnail.1))
+        .bind(thumbnail.as_ref().map(|thumbnail| thumbnail.2))
+        .bind(thumbnail.as_ref().map(|thumbnail| &thumbnail.3))
         .fetch_one(&self.pool)
         .await
     }
@@ -349,9 +386,32 @@ impl MessageStore {
         username: &str,
         id: i64,
     ) -> sqlx::Result<Option<ServedAttachment>> {
+        self.attachment_file_for_user(username, id, false).await
+    }
+
+    pub async fn attachment_thumbnail_for_user(
+        &self,
+        username: &str,
+        id: i64,
+    ) -> sqlx::Result<Option<ServedAttachment>> {
+        self.attachment_file_for_user(username, id, true).await
+    }
+
+    async fn attachment_file_for_user(
+        &self,
+        username: &str,
+        id: i64,
+        thumbnail: bool,
+    ) -> sqlx::Result<Option<ServedAttachment>> {
         let Some(row) = sqlx::query_as::<_, AttachmentFileRow>(
             r#"
-            SELECT attachments.stored_name, attachments.mime_type, attachments.nonce
+            SELECT
+                attachments.stored_name,
+                attachments.mime_type,
+                attachments.nonce,
+                attachments.thumbnail_stored_name,
+                attachments.thumbnail_mime_type,
+                attachments.thumbnail_nonce
             FROM attachments
             JOIN messages ON messages.attachment_id = attachments.id
             WHERE attachments.id = ?
@@ -373,17 +433,29 @@ impl MessageStore {
             return Ok(None);
         };
 
+        let (stored_name, mime_type, nonce) = if thumbnail {
+            match (
+                row.thumbnail_stored_name,
+                row.thumbnail_mime_type,
+                row.thumbnail_nonce,
+            ) {
+                (Some(stored_name), Some(mime_type), Some(nonce)) => {
+                    (stored_name, mime_type, nonce)
+                }
+                _ => (row.stored_name, row.mime_type, row.nonce),
+            }
+        } else {
+            (row.stored_name, row.mime_type, row.nonce)
+        };
+
         let ciphertext =
-            fs::read(self.attachments_dir.join(&row.stored_name)).map_err(sqlx::Error::Io)?;
+            fs::read(self.attachments_dir.join(&stored_name)).map_err(sqlx::Error::Io)?;
         let bytes = self
             .attachment_crypto
-            .decrypt(&ciphertext, &row.nonce)
+            .decrypt(&ciphertext, &nonce)
             .expect("failed to decrypt attachment");
 
-        Ok(Some(ServedAttachment {
-            bytes,
-            mime_type: row.mime_type,
-        }))
+        Ok(Some(ServedAttachment { bytes, mime_type }))
     }
 
     pub async fn hide_message_for_user(&self, username: &str, id: i64) -> sqlx::Result<bool> {
@@ -631,6 +703,54 @@ async fn ensure_attachments_table(pool: &SqlitePool) {
     .unwrap_or_else(|error| panic!("failed to create attachment schema: {error}"));
 }
 
+async fn ensure_attachment_thumbnail_columns(pool: &SqlitePool) {
+    let existing_columns: Vec<String> =
+        sqlx::query_scalar("SELECT name FROM pragma_table_info('attachments')")
+            .fetch_all(pool)
+            .await
+            .unwrap_or_else(|error| panic!("failed to inspect attachment schema: {error}"));
+
+    if !existing_columns
+        .iter()
+        .any(|column| column == "thumbnail_stored_name")
+    {
+        sqlx::query("ALTER TABLE attachments ADD COLUMN thumbnail_stored_name TEXT")
+            .execute(pool)
+            .await
+            .unwrap_or_else(|error| panic!("failed to add thumbnail_stored_name column: {error}"));
+    }
+
+    if !existing_columns
+        .iter()
+        .any(|column| column == "thumbnail_mime_type")
+    {
+        sqlx::query("ALTER TABLE attachments ADD COLUMN thumbnail_mime_type TEXT")
+            .execute(pool)
+            .await
+            .unwrap_or_else(|error| panic!("failed to add thumbnail_mime_type column: {error}"));
+    }
+
+    if !existing_columns
+        .iter()
+        .any(|column| column == "thumbnail_size_bytes")
+    {
+        sqlx::query("ALTER TABLE attachments ADD COLUMN thumbnail_size_bytes INTEGER")
+            .execute(pool)
+            .await
+            .unwrap_or_else(|error| panic!("failed to add thumbnail_size_bytes column: {error}"));
+    }
+
+    if !existing_columns
+        .iter()
+        .any(|column| column == "thumbnail_nonce")
+    {
+        sqlx::query("ALTER TABLE attachments ADD COLUMN thumbnail_nonce BLOB")
+            .execute(pool)
+            .await
+            .unwrap_or_else(|error| panic!("failed to add thumbnail_nonce column: {error}"));
+    }
+}
+
 async fn ensure_activity_logs_table(pool: &SqlitePool) {
     sqlx::query(
         r#"
@@ -707,6 +827,9 @@ struct AttachmentFileRow {
     stored_name: String,
     mime_type: String,
     nonce: Vec<u8>,
+    thumbnail_stored_name: Option<String>,
+    thumbnail_mime_type: Option<String>,
+    thumbnail_nonce: Option<Vec<u8>>,
 }
 
 async fn ensure_encrypted_columns(pool: &SqlitePool) {

@@ -1857,12 +1857,16 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       if (message.attachment) {
         const image = document.createElement("img");
         image.className = "message-photo";
-        image.src = `/attachments/${message.attachment.id}`;
+        image.src = `/attachments/${message.attachment.id}/thumbnail`;
         image.alt = message.attachment.original_name || "Attached photo";
         image.loading = "lazy";
+        image.dataset.fullSrc = `/attachments/${message.attachment.id}`;
+        image.addEventListener("error", () => {
+          image.src = image.dataset.fullSrc;
+        }, { once: true });
         image.addEventListener("click", (event) => {
           event.stopPropagation();
-          openPhotoViewer(image.src, image.alt);
+          openPhotoViewer(image.dataset.fullSrc, image.alt);
         });
         body.append(image);
       }
@@ -2083,6 +2087,11 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       const formData = new FormData();
       formData.append("photo", file);
 
+      const thumbnail = await createPhotoThumbnail(file);
+      if (thumbnail) {
+        formData.append("thumbnail", thumbnail, "thumbnail.jpg");
+      }
+
       let response;
       try {
         response = await fetch("/attachments", {
@@ -2106,6 +2115,42 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       pendingAttachment = await response.json();
       renderPendingAttachment();
       input.focus();
+    }
+
+    async function createPhotoThumbnail(file) {
+      try {
+        const url = URL.createObjectURL(file);
+        const image = new Image();
+        image.decoding = "async";
+
+        try {
+          image.src = url;
+          await image.decode();
+
+          const maxSide = 720;
+          const scale = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight));
+          const width = Math.max(1, Math.round(image.naturalWidth * scale));
+          const height = Math.max(1, Math.round(image.naturalHeight * scale));
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const context = canvas.getContext("2d", { alpha: false });
+
+          if (!context) {
+            return null;
+          }
+
+          context.drawImage(image, 0, 0, width, height);
+
+          return await new Promise((resolve) => {
+            canvas.toBlob(resolve, "image/jpeg", 0.74);
+          });
+        } finally {
+          URL.revokeObjectURL(url);
+        }
+      } catch {
+        return null;
+      }
     }
 
     function renderPendingAttachment() {

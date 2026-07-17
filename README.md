@@ -119,7 +119,7 @@ To change a password, generate a new hash, replace that user's `password_hash`, 
 - Login and chat use the dove logo mark instead of a text logo.
 - New WebSocket clients receive recent message history.
 - Messages are encrypted before being written to SQLite.
-- Photo attachments can be uploaded from the composer. Photos are encrypted with `attachment.key` before being written to `COMM_ATTACHMENTS_DIR`, and are served only through authenticated attachment routes.
+- Photo attachments can be uploaded from the composer. Photos and generated chat thumbnails are encrypted with `attachment.key` before being written to `COMM_ATTACHMENTS_DIR`, and are served only through authenticated attachment routes. Chat bubbles load the thumbnail first; tapping or clicking the photo opens the full image.
 - Messages containing an `http://` or `https://` URL get a lightweight link preview when metadata is available. Preview metadata is fetched in the background with system `curl` and stored encrypted with the message key.
 - `Delete for me` hides a message only for the requester.
 - `Delete for everyone` is allowed only for the sender and soft-deletes the message for both users.

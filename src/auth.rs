@@ -152,8 +152,15 @@ pub async fn upload_attachment(
         return StatusCode::UNAUTHORIZED.into_response();
     };
 
+    let mut photo: Option<UploadImage> = None;
+    let mut thumbnail: Option<UploadImage> = None;
+
     while let Ok(Some(field)) = multipart.next_field().await {
-        if field.name() != Some("photo") {
+        let Some(field_name) = field.name().map(str::to_owned) else {
+            continue;
+        };
+
+        if !matches!(field_name.as_str(), "photo" | "thumbnail") {
             continue;
         }
 
@@ -171,24 +178,52 @@ pub async fn upload_attachment(
             return StatusCode::PAYLOAD_TOO_LARGE.into_response();
         }
 
-        let Ok(attachment) = state
-            .store
-            .save_attachment(&username, original_name.as_deref(), &mime_type, &bytes)
-            .await
-        else {
-            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        match field_name.as_str() {
+            "photo" => {
+                photo = Some(UploadImage {
+                    original_name,
+                    mime_type,
+                    bytes: bytes.to_vec(),
+                });
+            }
+            "thumbnail" => {
+                thumbnail = Some(UploadImage {
+                    original_name,
+                    mime_type,
+                    bytes: bytes.to_vec(),
+                });
+            }
+            _ => {}
         };
-
-        return Json(AttachmentUploadResponse {
-            id: attachment.id,
-            mime_type: attachment.mime_type,
-            original_name: attachment.original_name,
-            size_bytes: attachment.size_bytes,
-        })
-        .into_response();
     }
 
-    StatusCode::BAD_REQUEST.into_response()
+    let Some(photo) = photo else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+
+    let Ok(attachment) = state
+        .store
+        .save_attachment(
+            &username,
+            photo.original_name.as_deref(),
+            &photo.mime_type,
+            &photo.bytes,
+            thumbnail
+                .as_ref()
+                .map(|thumbnail| (&thumbnail.mime_type as &str, thumbnail.bytes.as_slice())),
+        )
+        .await
+    else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+
+    Json(AttachmentUploadResponse {
+        id: attachment.id,
+        mime_type: attachment.mime_type,
+        original_name: attachment.original_name,
+        size_bytes: attachment.size_bytes,
+    })
+    .into_response()
 }
 
 pub async fn attachment(
@@ -211,6 +246,30 @@ pub async fn attachment(
     ([(CONTENT_TYPE, content_type)], attachment.bytes).into_response()
 }
 
+pub async fn attachment_thumbnail(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> Response {
+    let Some(username) = state.authenticated_user(&headers) else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+
+    let Ok(Some(attachment)) = state
+        .store
+        .attachment_thumbnail_for_user(&username, id)
+        .await
+    else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+
+    let Ok(content_type) = HeaderValue::from_str(&attachment.mime_type) else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+
+    ([(CONTENT_TYPE, content_type)], attachment.bytes).into_response()
+}
+
 pub async fn chat_backgrounds(State(state): State<AppState>, headers: HeaderMap) -> Response {
     if state.authenticated_user(&headers).is_none() {
         return StatusCode::UNAUTHORIZED.into_response();
@@ -220,6 +279,12 @@ pub async fn chat_backgrounds(State(state): State<AppState>, headers: HeaderMap)
         backgrounds: list_chat_backgrounds(),
     })
     .into_response()
+}
+
+struct UploadImage {
+    original_name: Option<String>,
+    mime_type: String,
+    bytes: Vec<u8>,
 }
 
 pub async fn chat_background(
