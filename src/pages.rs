@@ -621,9 +621,9 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       overflow: auto;
       padding: 14px;
       background: #000000;
-      cursor: zoom-out;
+      cursor: zoom-in;
       overscroll-behavior: contain;
-      touch-action: pan-x pan-y pinch-zoom;
+      touch-action: pan-x pan-y;
     }
 
     .photo-viewer[hidden] {
@@ -634,11 +634,24 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       display: block;
       width: auto;
       height: auto;
+      max-width: calc(100vw - 28px);
+      max-height: calc(100vh - 28px);
+      margin: auto;
+      cursor: zoom-in;
+      object-fit: contain;
+      touch-action: manipulation;
+    }
+
+    .photo-viewer.full-size {
+      cursor: zoom-out;
+      touch-action: pan-x pan-y;
+    }
+
+    .photo-viewer.full-size img {
       max-width: none;
       max-height: none;
-      margin: auto;
-      cursor: grab;
-      touch-action: pan-x pan-y pinch-zoom;
+      cursor: zoom-out;
+      touch-action: manipulation;
     }
 
     .privacy-content {
@@ -1716,7 +1729,17 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       }
     });
 
-    photoViewerImage.addEventListener("click", closePhotoViewer);
+    photoViewerImage.addEventListener("click", (event) => {
+      event.stopPropagation();
+
+      if (photoViewer.classList.contains("full-size")) {
+        closePhotoViewer();
+        return;
+      }
+
+      photoViewer.classList.add("full-size");
+      centerPhotoViewerImage();
+    });
 
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter" && !event.shiftKey && emojiSuggestionsEl.hidden) {
@@ -2186,6 +2209,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     function openPhotoViewer(src, alt) {
       closeMessageMenus();
       closeEmojiSuggestions();
+      photoViewer.classList.remove("full-size");
       photoViewer.scrollTop = 0;
       photoViewer.scrollLeft = 0;
       photoViewerImage.src = src;
@@ -2200,6 +2224,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       }
 
       photoViewer.hidden = true;
+      photoViewer.classList.remove("full-size");
       photoViewerImage.removeAttribute("src");
       photoViewerImage.alt = "";
     }
