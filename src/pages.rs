@@ -618,12 +618,14 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       position: fixed;
       z-index: 20;
       inset: 0;
-      overflow: auto;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
       padding: 14px;
       background: #000000;
-      cursor: zoom-in;
+      cursor: zoom-out;
       overscroll-behavior: contain;
-      touch-action: pan-x pan-y;
+      touch-action: none;
     }
 
     .photo-viewer[hidden] {
@@ -637,21 +639,13 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       max-width: calc(100vw - 28px);
       max-height: calc(100vh - 28px);
       margin: auto;
-      cursor: zoom-in;
+      cursor: zoom-out;
       object-fit: contain;
-      touch-action: manipulation;
-    }
-
-    .photo-viewer.full-size {
-      cursor: zoom-out;
-      touch-action: pan-x pan-y;
-    }
-
-    .photo-viewer.full-size img {
-      max-width: none;
-      max-height: none;
-      cursor: zoom-out;
-      touch-action: manipulation;
+      transform: translate(var(--photo-x, 0px), var(--photo-y, 0px)) scale(var(--photo-scale, 1));
+      transform-origin: center center;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-drag: none;
     }
 
     .privacy-content {
@@ -1467,6 +1461,19 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     const activityLogLines = document.querySelector("#activity-log-lines");
     const photoViewer = document.querySelector("#photo-viewer");
     const photoViewerImage = document.querySelector("#photo-viewer-image");
+    let photoViewerScale = 1;
+    let photoViewerX = 0;
+    let photoViewerY = 0;
+    let photoTouchMode = null;
+    let photoTouchStartDistance = 0;
+    let photoTouchStartScale = 1;
+    let photoTouchStartX = 0;
+    let photoTouchStartY = 0;
+    let photoTouchStartClientX = 0;
+    let photoTouchStartClientY = 0;
+    let photoTouchMoved = false;
+    let suppressNextPhotoClick = false;
+    let photoClickSuppressTimer = 0;
     const typingEl = document.querySelector("#typing");
     const form = document.querySelector("#chat-form");
     const input = document.querySelector("#message");
@@ -1732,14 +1739,18 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     photoViewerImage.addEventListener("click", (event) => {
       event.stopPropagation();
 
-      if (photoViewer.classList.contains("full-size")) {
-        closePhotoViewer();
+      if (suppressNextPhotoClick) {
+        suppressNextPhotoClick = false;
         return;
       }
 
-      photoViewer.classList.add("full-size");
-      centerPhotoViewerImage();
+      closePhotoViewer();
     });
+
+    photoViewer.addEventListener("touchstart", handlePhotoViewerTouchStart, { passive: false });
+    photoViewer.addEventListener("touchmove", handlePhotoViewerTouchMove, { passive: false });
+    photoViewer.addEventListener("touchend", handlePhotoViewerTouchEnd, { passive: false });
+    photoViewer.addEventListener("touchcancel", handlePhotoViewerTouchEnd, { passive: false });
 
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter" && !event.shiftKey && emojiSuggestionsEl.hidden) {
@@ -2209,13 +2220,12 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     function openPhotoViewer(src, alt) {
       closeMessageMenus();
       closeEmojiSuggestions();
-      photoViewer.classList.remove("full-size");
+      resetPhotoViewerZoom();
       photoViewer.scrollTop = 0;
       photoViewer.scrollLeft = 0;
       photoViewerImage.src = src;
       photoViewerImage.alt = alt;
       photoViewer.hidden = false;
-      photoViewerImage.addEventListener("load", centerPhotoViewerImage, { once: true });
     }
 
     function closePhotoViewer() {
@@ -2224,16 +2234,124 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       }
 
       photoViewer.hidden = true;
-      photoViewer.classList.remove("full-size");
+      resetPhotoViewerZoom();
       photoViewerImage.removeAttribute("src");
       photoViewerImage.alt = "";
     }
 
-    function centerPhotoViewerImage() {
-      requestAnimationFrame(() => {
-        photoViewer.scrollLeft = Math.max(0, (photoViewer.scrollWidth - photoViewer.clientWidth) / 2);
-        photoViewer.scrollTop = Math.max(0, (photoViewer.scrollHeight - photoViewer.clientHeight) / 2);
-      });
+    function resetPhotoViewerZoom() {
+      photoViewerScale = 1;
+      photoViewerX = 0;
+      photoViewerY = 0;
+      photoTouchMode = null;
+      photoTouchMoved = false;
+      suppressNextPhotoClick = false;
+      window.clearTimeout(photoClickSuppressTimer);
+      applyPhotoViewerTransform();
+    }
+
+    function applyPhotoViewerTransform() {
+      photoViewerImage.style.setProperty("--photo-scale", photoViewerScale.toFixed(3));
+      photoViewerImage.style.setProperty("--photo-x", `${Math.round(photoViewerX)}px`);
+      photoViewerImage.style.setProperty("--photo-y", `${Math.round(photoViewerY)}px`);
+    }
+
+    function handlePhotoViewerTouchStart(event) {
+      if (photoViewer.hidden) {
+        return;
+      }
+
+      if (event.touches.length === 2) {
+        event.preventDefault();
+        photoTouchMode = "pinch";
+        photoTouchMoved = false;
+        photoTouchStartDistance = touchDistance(event.touches[0], event.touches[1]);
+        photoTouchStartScale = photoViewerScale;
+        return;
+      }
+
+      if (event.touches.length === 1 && photoViewerScale > 1) {
+        event.preventDefault();
+        photoTouchMode = "pan";
+        photoTouchMoved = false;
+        photoTouchStartX = photoViewerX;
+        photoTouchStartY = photoViewerY;
+        photoTouchStartClientX = event.touches[0].clientX;
+        photoTouchStartClientY = event.touches[0].clientY;
+      }
+    }
+
+    function handlePhotoViewerTouchMove(event) {
+      if (photoTouchMode === "pinch" && event.touches.length === 2) {
+        event.preventDefault();
+        const distance = touchDistance(event.touches[0], event.touches[1]);
+
+        if (photoTouchStartDistance > 0) {
+          photoViewerScale = clamp(photoTouchStartScale * (distance / photoTouchStartDistance), 1, 5);
+
+          if (photoViewerScale === 1) {
+            photoViewerX = 0;
+            photoViewerY = 0;
+          }
+
+          photoTouchMoved = true;
+          suppressPhotoClick();
+          applyPhotoViewerTransform();
+        }
+
+        return;
+      }
+
+      if (photoTouchMode === "pan" && event.touches.length === 1) {
+        event.preventDefault();
+        photoViewerX = photoTouchStartX + event.touches[0].clientX - photoTouchStartClientX;
+        photoViewerY = photoTouchStartY + event.touches[0].clientY - photoTouchStartClientY;
+        photoTouchMoved = true;
+        suppressPhotoClick();
+        applyPhotoViewerTransform();
+      }
+    }
+
+    function handlePhotoViewerTouchEnd(event) {
+      if (event.touches.length === 0) {
+        photoTouchMode = null;
+
+        if (photoViewerScale <= 1.01) {
+          photoViewerScale = 1;
+          photoViewerX = 0;
+          photoViewerY = 0;
+          applyPhotoViewerTransform();
+        }
+
+        return;
+      }
+
+      if (event.touches.length === 1 && photoViewerScale > 1) {
+        photoTouchMode = "pan";
+        photoTouchStartX = photoViewerX;
+        photoTouchStartY = photoViewerY;
+        photoTouchStartClientX = event.touches[0].clientX;
+        photoTouchStartClientY = event.touches[0].clientY;
+      }
+    }
+
+    function touchDistance(firstTouch, secondTouch) {
+      return Math.hypot(
+        firstTouch.clientX - secondTouch.clientX,
+        firstTouch.clientY - secondTouch.clientY
+      );
+    }
+
+    function suppressPhotoClick() {
+      suppressNextPhotoClick = true;
+      window.clearTimeout(photoClickSuppressTimer);
+      photoClickSuppressTimer = window.setTimeout(() => {
+        suppressNextPhotoClick = false;
+      }, 450);
+    }
+
+    function clamp(value, minimum, maximum) {
+      return Math.min(maximum, Math.max(minimum, value));
     }
 
     function formatActivityLog(log) {
