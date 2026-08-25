@@ -91,7 +91,7 @@ const LOGIN_PAGE: &str = r#"<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Comm Login</title>
+  <title>Search</title>
   <style>
     :root {
       color-scheme: light dark;
