@@ -764,6 +764,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
     .message-meta {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       gap: 8px;
       padding: 0 2px;
@@ -824,6 +825,22 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       background: transparent;
       color: var(--muted);
       font-size: 1rem;
+    }
+
+    .message-reply-button {
+      min-height: 32px;
+      padding: 0 9px;
+      border: 1px solid var(--control-border);
+      border-radius: 5px;
+      background: var(--elevated-bg);
+      color: var(--text);
+      font-size: 0.78rem;
+      white-space: nowrap;
+    }
+
+    .message-reply-button:hover,
+    .message-reply-button:focus-visible {
+      background: var(--hover-bg);
     }
 
     .message-bubble a {
@@ -2054,11 +2071,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       menu.className = "message-menu";
       menu.hidden = true;
 
-      const replyButton = document.createElement("button");
-      replyButton.className = "message-action";
-      replyButton.type = "button";
-      replyButton.textContent = "Reply";
-      replyButton.addEventListener("click", (event) => {
+      const selectReply = (event) => {
         event.stopPropagation();
         pendingReply = message;
         replyDraftAuthor.textContent = `Replying to ${message.from === currentUser ? "yourself" : message.from}`;
@@ -2066,8 +2079,21 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         replyDraft.hidden = false;
         closeMessageMenus();
         input.focus();
-      });
+      };
+
+      const replyButton = document.createElement("button");
+      replyButton.className = "message-action";
+      replyButton.type = "button";
+      replyButton.textContent = "Reply";
+      replyButton.addEventListener("click", selectReply);
       menu.append(replyButton);
+
+      const quickReplyButton = document.createElement("button");
+      quickReplyButton.className = "message-reply-button";
+      quickReplyButton.type = "button";
+      quickReplyButton.textContent = "Reply";
+      quickReplyButton.addEventListener("click", selectReply);
+      meta.append(quickReplyButton);
 
       const actionsButton = document.createElement("button");
       actionsButton.type = "button";
