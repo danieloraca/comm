@@ -135,10 +135,10 @@ To change a password, generate a new hash, replace that user's `password_hash`, 
 
 ## Replies
 
-Choose **Reply** beside a message's timestamp, or open its **⋯** menu and choose
-**Reply**. The separate Reply button also works for messages containing only a
-link or video preview; clicking the link still opens it normally. The composer
-shows the original sender and a short preview.
+Open a message's **⋯** menu beside its timestamp, then choose **Reply**.
+Reply appears only while the menu is open. For a link or video preview, use
+**⋯** to reply; clicking the link still opens it normally. The composer shows
+the original sender and a short preview.
 Write your response or attach a photo and send it as usual. Choose **Cancel**
 (or press Escape) to stop replying without discarding your draft.
 
