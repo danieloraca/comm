@@ -1,9 +1,11 @@
-use std::{env, process::Stdio};
+use std::{env, process::Stdio, time::Duration};
 
 use tokio::{process::Command, time};
 
 const DEFAULT_NTFY_SERVER: &str = "https://ntfy.sh";
-const NTFY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+const NTFY_CURL_MAX_TIME_SECS: u64 = 5;
+const NTFY_PROCESS_TIMEOUT: Duration = Duration::from_secs(NTFY_CURL_MAX_TIME_SECS + 2);
+const NTFY_ATTEMPTS: usize = 3;
 
 pub fn notify_presence(username: &str, status: &str) {
     let Some(config) = NtfyConfig::from_env() else {
@@ -77,14 +79,33 @@ fn notification_tag(status: &str) -> &str {
 }
 
 async fn publish_ntfy(url: &str, body: &str, tag: String) -> Result<(), String> {
+    let mut last_error = String::new();
+
+    for attempt in 1..=NTFY_ATTEMPTS {
+        match publish_ntfy_once(url, body, &tag).await {
+            Ok(()) => return Ok(()),
+            Err(error) => last_error = error,
+        }
+
+        if attempt < NTFY_ATTEMPTS {
+            time::sleep(Duration::from_secs(attempt as u64)).await;
+        }
+    }
+
+    Err(format!(
+        "request failed after {NTFY_ATTEMPTS} attempts: {last_error}"
+    ))
+}
+
+async fn publish_ntfy_once(url: &str, body: &str, tag: &str) -> Result<(), String> {
     let status = time::timeout(
-        NTFY_TIMEOUT,
+        NTFY_PROCESS_TIMEOUT,
         Command::new("curl")
             .arg("--silent")
             .arg("--show-error")
             .arg("--fail")
             .arg("--max-time")
-            .arg("5")
+            .arg(NTFY_CURL_MAX_TIME_SECS.to_string())
             .arg("--data-binary")
             .arg(body)
             .arg("-H")
@@ -100,6 +121,8 @@ async fn publish_ntfy(url: &str, body: &str, tag: String) -> Result<(), String> 
 
     if status.success() {
         Ok(())
+    } else if status.code() == Some(28) {
+        Err(format!("curl timed out after {NTFY_CURL_MAX_TIME_SECS}s"))
     } else {
         Err(format!("curl exited with status {status}"))
     }
