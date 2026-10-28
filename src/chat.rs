@@ -21,7 +21,7 @@ use crate::{
     clock::activity_timestamp,
     link_preview::{self, LinkPreview},
     notifier,
-    store::{ActivityLog, ReadReceipt, StoredAttachment, StoredMessage},
+    store::{ActivityLog, MessageStore, ReadReceipt, StoredAttachment, StoredMessage, StoredReply},
 };
 
 const MAX_MESSAGE_LEN: usize = 2_000;
@@ -32,6 +32,13 @@ const HISTORY_BATCH_SIZE: usize = 100;
 pub enum ServerEvent {
     #[serde(rename = "message")]
     Message(ChatMessage),
+    #[serde(rename = "message_error")]
+    MessageError {
+        #[serde(skip)]
+        username: String,
+        client_id: Option<String>,
+        error: String,
+    },
     #[serde(rename = "delete_for_me")]
     DeleteForMe {
         id: i64,
@@ -72,10 +79,39 @@ pub struct ChatMessage {
     id: i64,
     from: String,
     body: String,
+    reply_to_id: Option<i64>,
+    reply_to: Option<ChatReply>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    client_id: Option<String>,
     attachment: Option<ChatAttachment>,
     link_preview: Option<ChatLinkPreview>,
     created_at: String,
     read_at: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ChatReply {
+    from: String,
+    body: String,
+    has_attachment: bool,
+}
+
+impl ChatMessage {
+    async fn load_reply(&mut self, store: &MessageStore, username: &str) {
+        self.reply_to = match self.reply_to_id {
+            Some(id) => match store.reply_for_user(username, id).await {
+                Ok(reply) => reply.map(ChatReply::from),
+                Err(error) => {
+                    eprintln!(
+                        "failed to load reply context for message {}: {error}",
+                        self.id
+                    );
+                    None
+                }
+            },
+            None => None,
+        };
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -109,6 +145,8 @@ enum ClientEvent {
     Message {
         body: String,
         attachment_id: Option<i64>,
+        reply_to_id: Option<i64>,
+        client_id: Option<String>,
     },
     #[serde(rename = "delete_for_me")]
     DeleteForMe { id: i64 },
@@ -145,12 +183,10 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
 
     match store.recent_messages(&username).await {
         Ok(history) => {
-            for message in history
-                .into_iter()
-                .map(ChatMessage::from)
-                .map(ServerEvent::Message)
-            {
-                let Ok(payload) = serde_json::to_string(&message) else {
+            for stored in history {
+                let mut message = ChatMessage::from(stored);
+                message.load_reply(&store, &username).await;
+                let Ok(payload) = serde_json::to_string(&ServerEvent::Message(message)) else {
                     continue;
                 };
 
@@ -186,10 +222,17 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
         });
     }
 
+    let send_store = store.clone();
     let send_task = tokio::spawn(async move {
         loop {
             match chat_rx.recv().await {
-                Ok(event) => {
+                Ok(mut event) => {
+                    if matches!(
+                        &event,
+                        ServerEvent::MessageError { username, .. } if username != &send_username
+                    ) {
+                        continue;
+                    }
                     if matches!(
                         &event,
                         ServerEvent::DeleteForMe {
@@ -225,6 +268,19 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
                         continue;
                     }
 
+                    // Resolve quotes for each recipient so hidden originals stay hidden.
+                    match &mut event {
+                        ServerEvent::Message(message) => {
+                            message.load_reply(&send_store, &send_username).await;
+                        }
+                        ServerEvent::OlderMessages { messages, .. } => {
+                            for message in messages {
+                                message.load_reply(&send_store, &send_username).await;
+                            }
+                        }
+                        _ => {}
+                    }
+
                     let Ok(payload) = serde_json::to_string(&event) else {
                         continue;
                     };
@@ -250,23 +306,48 @@ async fn handle_socket(state: AppState, username: String, socket: WebSocket) {
                     ClientEvent::Message {
                         body,
                         attachment_id,
+                        reply_to_id,
+                        client_id,
                     } => {
                         let body = body.trim();
 
                         if (body.is_empty() && attachment_id.is_none())
                             || body.len() > MAX_MESSAGE_LEN
                         {
+                            let _ = chat_tx.send(ServerEvent::MessageError {
+                                username: username.clone(),
+                                client_id,
+                                error: "Message is empty or too long. Try a shorter message or add a photo.".into(),
+                            });
                             continue;
                         }
 
-                        let Ok(stored) = store.save_message(&username, body, attachment_id).await
-                        else {
-                            continue;
+                        let stored = match store
+                            .save_message(&username, body, attachment_id, reply_to_id)
+                            .await
+                        {
+                            Ok(stored) => stored,
+                            Err(error) => {
+                                let message = if matches!(error, sqlx::Error::RowNotFound) {
+                                    "Could not send: the original message or photo is no longer available. Cancel the reply or remove the photo and try again."
+                                } else {
+                                    eprintln!("failed to save message: {error}");
+                                    "Could not save your message. Please try again."
+                                };
+                                let _ = chat_tx.send(ServerEvent::MessageError {
+                                    username: username.clone(),
+                                    client_id,
+                                    error: message.into(),
+                                });
+                                continue;
+                            }
                         };
                         let message_id = stored.id;
                         let body = body.to_owned();
 
-                        let _ = chat_tx.send(ServerEvent::Message(ChatMessage::from(stored)));
+                        let mut message = ChatMessage::from(stored);
+                        message.client_id = client_id;
+                        let _ = chat_tx.send(ServerEvent::Message(message));
 
                         if let Some(url) = link_preview::first_url(&body) {
                             let store = store.clone();
@@ -401,10 +482,23 @@ impl From<StoredMessage> for ChatMessage {
             id: message.id,
             from: message.sender,
             body: message.body,
+            reply_to_id: message.reply_to_id,
+            reply_to: None,
+            client_id: None,
             attachment: message.attachment.map(ChatAttachment::from),
             link_preview: message.link_preview.map(ChatLinkPreview::from),
             created_at: message.created_at,
             read_at: message.read_at,
+        }
+    }
+}
+
+impl From<StoredReply> for ChatReply {
+    fn from(reply: StoredReply) -> Self {
+        Self {
+            from: reply.sender,
+            body: reply.body,
+            has_attachment: reply.has_attachment,
         }
     }
 }

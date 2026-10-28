@@ -76,6 +76,7 @@ impl MessageStore {
 
         ensure_encrypted_columns(&pool).await;
         ensure_message_attachment_column(&pool).await;
+        ensure_message_reply_column(&pool).await;
         ensure_link_preview_columns(&pool).await;
         ensure_attachments_table(&pool).await;
         ensure_attachment_thumbnail_columns(&pool).await;
@@ -96,6 +97,7 @@ impl MessageStore {
         sender: &str,
         body: &str,
         attachment_id: Option<i64>,
+        reply_to_id: Option<i64>,
     ) -> sqlx::Result<StoredMessage> {
         if let Some(attachment_id) = attachment_id {
             let exists: Option<i64> = sqlx::query_scalar(
@@ -122,8 +124,16 @@ impl MessageStore {
 
         let row = sqlx::query_as::<_, MessageRow>(
             r#"
-            INSERT INTO messages (sender, body, body_ciphertext, body_nonce, attachment_id)
-            VALUES (?, '', ?, ?, ?)
+            INSERT INTO messages (sender, body, body_ciphertext, body_nonce, attachment_id, reply_to_id)
+            SELECT ?, '', ?, ?, ?, ?
+            WHERE ? IS NULL OR EXISTS (
+                SELECT 1 FROM messages
+                WHERE id = ? AND deleted_at IS NULL
+                AND NOT EXISTS (
+                    SELECT 1 FROM hidden_messages
+                    WHERE message_id = messages.id AND username = ?
+                )
+            )
             RETURNING
                 id,
                 sender,
@@ -131,6 +141,7 @@ impl MessageStore {
                 body_ciphertext,
                 body_nonce,
                 attachment_id,
+                reply_to_id,
                 link_preview_ciphertext,
                 link_preview_nonce,
                 created_at,
@@ -144,6 +155,10 @@ impl MessageStore {
         .bind(encrypted.ciphertext)
         .bind(encrypted.nonce)
         .bind(attachment_id)
+        .bind(reply_to_id)
+        .bind(reply_to_id)
+        .bind(reply_to_id)
+        .bind(sender)
         .fetch_one(&self.pool)
         .await?;
 
@@ -160,6 +175,7 @@ impl MessageStore {
                 body_ciphertext,
                 body_nonce,
                 attachment_id,
+                reply_to_id,
                 link_preview_ciphertext,
                 link_preview_nonce,
                 created_at,
@@ -175,6 +191,7 @@ impl MessageStore {
                     messages.body_ciphertext,
                     messages.body_nonce,
                     messages.attachment_id,
+                    messages.reply_to_id,
                     messages.link_preview_ciphertext,
                     messages.link_preview_nonce,
                     messages.created_at,
@@ -228,6 +245,7 @@ impl MessageStore {
                 body_ciphertext,
                 body_nonce,
                 attachment_id,
+                reply_to_id,
                 link_preview_ciphertext,
                 link_preview_nonce,
                 created_at,
@@ -243,6 +261,7 @@ impl MessageStore {
                     messages.body_ciphertext,
                     messages.body_nonce,
                     messages.attachment_id,
+                    messages.reply_to_id,
                     messages.link_preview_ciphertext,
                     messages.link_preview_nonce,
                     messages.created_at,
@@ -282,6 +301,51 @@ impl MessageStore {
         }
 
         Ok(messages)
+    }
+
+    pub async fn reply_for_user(
+        &self,
+        username: &str,
+        id: i64,
+    ) -> sqlx::Result<Option<StoredReply>> {
+        let row = sqlx::query_as::<_, ReplyRow>(
+            r#"
+            SELECT id, sender, body, body_ciphertext, body_nonce,
+                attachment_id IS NOT NULL AS has_attachment
+            FROM messages
+            WHERE id = ? AND deleted_at IS NULL
+            AND NOT EXISTS (
+                SELECT 1 FROM hidden_messages
+                WHERE message_id = messages.id AND username = ?
+            )
+            "#,
+        )
+        .bind(id)
+        .bind(username)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let Some(row) = row else {
+            return Ok(None);
+        };
+        let body = match (row.body_ciphertext.as_deref(), row.body_nonce.as_deref()) {
+            (Some(ciphertext), Some(nonce)) => {
+                self.crypto.decrypt(ciphertext, nonce).map_err(|error| {
+                    sqlx::Error::Decode(Box::new(std::io::Error::other(error.to_string())))
+                })?
+            }
+            _ => {
+                let body = row.body.unwrap_or_default();
+                self.encrypt_existing_row(row.id, &body).await;
+                body
+            }
+        };
+
+        Ok(Some(StoredReply {
+            sender: row.sender,
+            body,
+            has_attachment: row.has_attachment,
+        }))
     }
 
     pub async fn update_message_link_preview(
@@ -598,6 +662,7 @@ impl MessageStore {
             id: row.id,
             sender: row.sender,
             body,
+            reply_to_id: row.reply_to_id,
             attachment: row.attachment_id.map(|id| StoredAttachment {
                 id,
                 mime_type: row.attachment_mime_type.unwrap_or_default(),
@@ -772,10 +837,28 @@ pub struct StoredMessage {
     pub id: i64,
     pub sender: String,
     pub body: String,
+    pub reply_to_id: Option<i64>,
     pub attachment: Option<StoredAttachment>,
     pub link_preview: Option<LinkPreview>,
     pub created_at: String,
     pub read_at: Option<String>,
+}
+
+#[derive(Debug)]
+pub struct StoredReply {
+    pub sender: String,
+    pub body: String,
+    pub has_attachment: bool,
+}
+
+#[derive(FromRow)]
+struct ReplyRow {
+    id: i64,
+    sender: String,
+    body: Option<String>,
+    body_ciphertext: Option<Vec<u8>>,
+    body_nonce: Option<Vec<u8>>,
+    has_attachment: bool,
 }
 
 #[derive(Clone, Debug, FromRow)]
@@ -813,6 +896,7 @@ struct MessageRow {
     body_ciphertext: Option<Vec<u8>>,
     body_nonce: Option<Vec<u8>>,
     attachment_id: Option<i64>,
+    reply_to_id: Option<i64>,
     link_preview_ciphertext: Option<Vec<u8>>,
     link_preview_nonce: Option<Vec<u8>>,
     created_at: String,
@@ -882,6 +966,22 @@ async fn ensure_message_attachment_column(pool: &SqlitePool) {
     }
 }
 
+async fn ensure_message_reply_column(pool: &SqlitePool) {
+    let exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM pragma_table_info('messages') WHERE name = 'reply_to_id')",
+    )
+    .fetch_one(pool)
+    .await
+    .expect("failed to inspect message reply schema");
+
+    if !exists {
+        sqlx::query("ALTER TABLE messages ADD COLUMN reply_to_id INTEGER REFERENCES messages(id)")
+            .execute(pool)
+            .await
+            .expect("failed to add reply_to_id column");
+    }
+}
+
 async fn ensure_link_preview_columns(pool: &SqlitePool) {
     let existing_columns: Vec<String> =
         sqlx::query_scalar("SELECT name FROM pragma_table_info('messages')")
@@ -920,5 +1020,234 @@ fn random_stored_name() -> String {
 impl std::fmt::Display for CryptoError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(formatter, "{self:?}")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct Fixture {
+        dir: PathBuf,
+        store: MessageStore,
+    }
+
+    impl Fixture {
+        async fn new() -> Self {
+            let dir = env::temp_dir().join(format!("comm-replies-{}", rand::random::<u64>()));
+            fs::create_dir_all(&dir).unwrap();
+            let store = Self::open(&dir).await;
+            Self { dir, store }
+        }
+
+        async fn open(dir: &std::path::Path) -> MessageStore {
+            MessageStore::open(
+                dir.join("messages.sqlite3").to_str().unwrap(),
+                MessageCrypto::load_or_create(dir.join("message.key").to_str().unwrap()),
+                AttachmentCrypto::load_or_create(dir.join("attachment.key").to_str().unwrap()),
+                dir.join("attachments"),
+            )
+            .await
+        }
+    }
+
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.dir);
+        }
+    }
+
+    #[tokio::test]
+    async fn replies_survive_reopening_and_keep_message_bodies_encrypted() {
+        let fixture = Fixture::new().await;
+        let store = &fixture.store;
+        let original = store
+            .save_message("alice", "Original secret", None, None)
+            .await
+            .unwrap();
+        let reply = store
+            .save_message("bob", "Reply secret", None, Some(original.id))
+            .await
+            .unwrap();
+        let nested = store
+            .save_message("alice", "Reply to reply", None, Some(reply.id))
+            .await
+            .unwrap();
+        assert_eq!(nested.reply_to_id, Some(reply.id));
+        assert!(original.reply_to_id.is_none());
+
+        let plaintext_count: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM messages WHERE body != '' OR body_ciphertext IS NULL",
+        )
+        .fetch_one(&store.pool)
+        .await
+        .unwrap();
+        assert_eq!(plaintext_count, 0);
+
+        store.pool.close().await;
+        let reopened = Fixture::open(&fixture.dir).await;
+        let history = reopened.recent_messages("bob").await.unwrap();
+        assert_eq!(history[1].reply_to_id, Some(original.id));
+        assert_eq!(history[1].body, "Reply secret");
+        let quote = reopened
+            .reply_for_user("bob", original.id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(quote.sender, "alice");
+        assert_eq!(quote.body, "Original secret");
+        assert!(!quote.has_attachment);
+        reopened.pool.close().await;
+    }
+
+    #[tokio::test]
+    async fn hidden_and_deleted_originals_do_not_leak_or_accept_new_replies() {
+        let fixture = Fixture::new().await;
+        let store = &fixture.store;
+        let original = store
+            .save_message("alice", "Original", None, None)
+            .await
+            .unwrap();
+        let reply = store
+            .save_message("bob", "Reply", None, Some(original.id))
+            .await
+            .unwrap();
+        store
+            .hide_message_for_user("bob", original.id)
+            .await
+            .unwrap();
+
+        assert!(
+            store
+                .reply_for_user("bob", original.id)
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            store
+                .reply_for_user("alice", original.id)
+                .await
+                .unwrap()
+                .is_some()
+        );
+        assert!(matches!(
+            store
+                .save_message("bob", "Hidden", None, Some(original.id))
+                .await,
+            Err(sqlx::Error::RowNotFound)
+        ));
+        assert!(matches!(
+            store
+                .save_message("alice", "Missing", None, Some(9999))
+                .await,
+            Err(sqlx::Error::RowNotFound)
+        ));
+        assert!(matches!(
+            store.save_message("alice", "Invalid", None, Some(-1)).await,
+            Err(sqlx::Error::RowNotFound)
+        ));
+
+        store
+            .delete_message_for_everyone("alice", original.id)
+            .await
+            .unwrap();
+        assert!(
+            store
+                .reply_for_user("alice", original.id)
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(matches!(
+            store
+                .save_message("alice", "Deleted", None, Some(original.id))
+                .await,
+            Err(sqlx::Error::RowNotFound)
+        ));
+        let history = store.recent_messages("bob").await.unwrap();
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].id, reply.id);
+        assert_eq!(history[0].reply_to_id, Some(original.id));
+    }
+
+    #[tokio::test]
+    async fn photo_replies_and_quotes_outside_the_current_history_page_work() {
+        let fixture = Fixture::new().await;
+        let store = &fixture.store;
+        let photo = store
+            .save_attachment("alice", Some("photo.png"), "image/png", b"test photo", None)
+            .await
+            .unwrap();
+        let original = store
+            .save_message("alice", "", Some(photo.id), None)
+            .await
+            .unwrap();
+        for _ in 0..HISTORY_LIMIT {
+            store
+                .save_message("bob", "Later", None, None)
+                .await
+                .unwrap();
+        }
+        let reply = store
+            .save_message("alice", "", Some(photo.id), Some(original.id))
+            .await
+            .unwrap();
+        let recent = store.recent_messages("alice").await.unwrap();
+        assert!(!recent.iter().any(|message| message.id == original.id));
+        assert_eq!(recent.last().unwrap().reply_to_id, Some(original.id));
+        let quote = store
+            .reply_for_user("alice", original.id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(quote.has_attachment);
+        assert!(quote.body.is_empty());
+        let older = store.messages_before("alice", reply.id + 1).await.unwrap();
+        assert_eq!(older.last().unwrap().reply_to_id, Some(original.id));
+    }
+
+    #[tokio::test]
+    async fn migration_keeps_legacy_messages_and_encrypts_quoted_text() {
+        let fixture = Fixture::new().await;
+        fixture.store.pool.close().await;
+        let path = fixture.dir.join("messages.sqlite3");
+        fs::remove_file(&path).unwrap();
+        let pool = SqlitePool::connect_with(
+            SqliteConnectOptions::new()
+                .filename(&path)
+                .create_if_missing(true),
+        )
+        .await
+        .unwrap();
+        sqlx::query("CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT, sender TEXT NOT NULL, body TEXT, created_at TEXT NOT NULL DEFAULT '2026-10-28T12:00:00Z')")
+            .execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO messages (sender, body) VALUES ('alice', 'Legacy original')")
+            .execute(&pool)
+            .await
+            .unwrap();
+        pool.close().await;
+
+        let migrated = Fixture::open(&fixture.dir).await;
+        migrated
+            .save_message("bob", "New reply", None, Some(1))
+            .await
+            .unwrap();
+        assert_eq!(
+            migrated
+                .reply_for_user("bob", 1)
+                .await
+                .unwrap()
+                .unwrap()
+                .body,
+            "Legacy original"
+        );
+        let body: String = sqlx::query_scalar("SELECT body FROM messages WHERE id = 1")
+            .fetch_one(&migrated.pool)
+            .await
+            .unwrap();
+        assert!(body.is_empty());
+        assert_eq!(migrated.recent_messages("bob").await.unwrap().len(), 2);
+        migrated.pool.close().await;
     }
 }

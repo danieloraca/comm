@@ -133,6 +133,23 @@ To change a password, generate a new hash, replace that user's `password_hash`, 
 - The message composer supports multiline input with Shift+Enter; Enter sends.
 - Per-user appearance preferences are stored in the browser, including `System`, `Light`, `Dark`, `Dim`, and `Red` themes plus text size controls from 90% to 180%. The logo color adapts so it remains visible in light and dark themes.
 
+## Replies
+
+Open a message's menu by clicking/tapping the message or its **⋯** button, then
+choose **Reply**. The composer shows the original sender and a short preview.
+Write your response or attach a photo and send it as usual. Choose **Cancel**
+(or press Escape) to stop replying without discarding your draft.
+
+Replies include quoted context for text and photo messages, including your own
+messages, and retain it after reloading or loading older history. If the original
+is deleted for everyone, its quote becomes **Message unavailable**. Deleting it
+for yourself hides the quote only for you. Replies store a reference to the
+original; message text remains encrypted at rest. Existing databases gain the
+optional reply column automatically on startup.
+
+The composer clears a sent draft only after the server confirms it was saved.
+If sending fails, an error is shown and the draft remains available to retry.
+
 ## Activity Logs
 
 Type `/activityLogs` in the message composer to switch the message pane to recent online/offline activity. The view uses the same format as the terminal:

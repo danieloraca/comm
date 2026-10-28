@@ -19,7 +19,7 @@ impl MessageCrypto {
         Self::load_or_create(&path)
     }
 
-    fn load_or_create(path: &str) -> Self {
+    pub(crate) fn load_or_create(path: &str) -> Self {
         let key = if Path::new(path).exists() {
             read_key(path)
         } else {

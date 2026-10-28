@@ -791,6 +791,41 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       line-height: 1;
     }
 
+    .reply-quote {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+      margin-bottom: 8px;
+      padding: 6px 9px;
+      border-left: 3px solid var(--accent);
+      border-radius: 3px;
+      background: var(--surface-bg);
+      font-size: 0.82rem;
+      line-height: 1.35;
+      white-space: normal;
+    }
+
+    .reply-quote strong {
+      color: var(--accent);
+    }
+
+    .reply-quote span {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
+      overflow-wrap: anywhere;
+      color: var(--muted);
+    }
+
+    .message-actions-toggle {
+      min-height: 28px;
+      padding: 0 7px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 1rem;
+    }
+
     .message-bubble a {
       color: var(--accent);
       text-decoration: underline;
@@ -937,6 +972,11 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       display: none;
     }
 
+    .message-menu.above {
+      top: auto;
+      bottom: calc(100% + 4px);
+    }
+
     .message-action {
       width: 100%;
       min-height: 34px;
@@ -977,7 +1017,8 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       padding-bottom: 2px;
     }
 
-    .attachment-draft {
+    .attachment-draft,
+    .reply-draft {
       grid-column: 1 / -1;
       display: flex;
       align-items: center;
@@ -991,6 +1032,19 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       font-size: 0.82rem;
     }
 
+    .reply-draft .reply-quote {
+      flex: 1;
+      margin: 0;
+    }
+
+    .send-error {
+      grid-column: 1 / -1;
+      margin: 0;
+      color: var(--danger);
+      font-size: 0.82rem;
+    }
+
+    .reply-draft[hidden],
     .attachment-draft[hidden],
     .photo-input {
       display: none;
@@ -1424,6 +1478,14 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         <button class="emoji-button" type="button" data-emoji="👀" title="Eyes">👀</button>
         <button class="emoji-button" type="button" data-emoji="🔥" title="Fire">🔥</button>
       </div>
+      <div class="reply-draft" id="reply-draft" hidden aria-live="polite">
+        <div class="reply-quote">
+          <strong id="reply-draft-author"></strong>
+          <span id="reply-draft-text"></span>
+        </div>
+        <button class="clear-attachment-button" id="cancel-reply" type="button" aria-label="Cancel reply">Cancel</button>
+      </div>
+      <p class="send-error" id="send-error" role="alert" hidden></p>
       <div class="attachment-draft" id="attachment-draft" hidden>
         <span id="attachment-draft-label"></span>
         <button class="clear-attachment-button" id="clear-attachment" type="button">Remove</button>
@@ -1477,6 +1539,12 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     const typingEl = document.querySelector("#typing");
     const form = document.querySelector("#chat-form");
     const input = document.querySelector("#message");
+    const sendButton = form.querySelector('button[type="submit"]');
+    const sendError = document.querySelector("#send-error");
+    const replyDraft = document.querySelector("#reply-draft");
+    const replyDraftAuthor = document.querySelector("#reply-draft-author");
+    const replyDraftText = document.querySelector("#reply-draft-text");
+    const cancelReplyButton = document.querySelector("#cancel-reply");
     const photoInput = document.querySelector("#photo-input");
     const uploadButton = document.querySelector("#upload-button");
     const attachmentDraft = document.querySelector("#attachment-draft");
@@ -1541,6 +1609,8 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     let loadingOlderMessages = false;
     let hasMoreOlderMessages = true;
     let pendingAttachment = null;
+    let pendingReply = null;
+    let pendingSend = null;
     const onlineUsers = new Set();
     const readMessageIds = new Set();
     const readObserver = new IntersectionObserver((entries) => {
@@ -1569,7 +1639,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       statusEl.textContent = "Disconnected";
       statusEl.hidden = false;
       input.disabled = true;
-      form.querySelector("button").disabled = true;
+      sendButton.disabled = true;
     });
 
     socket.addEventListener("message", (event) => {
@@ -1577,6 +1647,23 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
       if (serverEvent.type === "message") {
         appendMessage(serverEvent);
+        if (pendingSend && serverEvent.from === currentUser && pendingSend.id === serverEvent.client_id) {
+          if (input.value === pendingSend.text) input.value = "";
+          if (pendingAttachment === pendingSend.attachment) clearPendingAttachment();
+          if (pendingReply === pendingSend.reply) clearPendingReply();
+          pendingSend = null;
+          sendButton.disabled = false;
+          sendError.hidden = true;
+          resizeComposer();
+          sendTyping(false);
+        }
+      }
+
+      if (pendingSend && serverEvent.type === "message_error" && pendingSend.id === serverEvent.client_id) {
+        pendingSend = null;
+        sendButton.disabled = false;
+        sendError.textContent = serverEvent.error;
+        sendError.hidden = false;
       }
 
       if (serverEvent.type === "delete_for_me" || serverEvent.type === "delete_for_everyone") {
@@ -1615,7 +1702,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       const rawBody = input.value.trim();
       const body = expandEmojiShortcodes(rawBody);
 
-      if ((!body && !pendingAttachment) || socket.readyState !== WebSocket.OPEN) {
+      if (pendingSend || (!body && !pendingAttachment) || socket.readyState !== WebSocket.OPEN) {
         return;
       }
 
@@ -1627,15 +1714,27 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         return;
       }
 
+      pendingSend = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        text: input.value,
+        attachment: pendingAttachment,
+        reply: pendingReply,
+      };
+      sendButton.disabled = true;
+      sendError.hidden = true;
       socket.send(JSON.stringify({
         type: "message",
         body,
         attachment_id: pendingAttachment?.id ?? null,
+        reply_to_id: pendingReply?.id ?? null,
+        client_id: pendingSend.id,
       }));
-      input.value = "";
-      clearPendingAttachment();
-      resizeComposer();
       sendTyping(false);
+    });
+
+    cancelReplyButton.addEventListener("click", () => {
+      clearPendingReply();
+      input.focus();
     });
 
     input.addEventListener("input", () => {
@@ -1869,6 +1968,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         closeSettings();
         closeMessageMenus();
         closeEmojiSuggestions();
+        clearPendingReply();
       }
     });
 
@@ -1900,6 +2000,9 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
       const body = document.createElement("div");
       body.className = "message-bubble";
+      if (message.reply_to_id) {
+        body.append(createReplyQuote(message.reply_to_id, message.reply_to));
+      }
       if (message.attachment) {
         const image = document.createElement("img");
         image.className = "message-photo";
@@ -1918,7 +2021,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       }
 
       const isPreviewOnly = message.link_preview && isOnlyPreviewUrl(message.body, message.link_preview.url);
-      body.classList.toggle("preview-only", Boolean(isPreviewOnly));
+      body.classList.toggle("preview-only", Boolean(isPreviewOnly) && !message.reply_to_id);
 
       if (message.body && !isPreviewOnly) {
         const text = document.createElement("div");
@@ -1933,7 +2036,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
       body.classList.toggle(
         "emoji-only",
-        !message.attachment && !message.link_preview && isSingleEmojiMessage(message.body)
+        !message.reply_to_id && !message.attachment && !message.link_preview && isSingleEmojiMessage(message.body)
       );
 
       if (message.from === currentUser) {
@@ -1950,6 +2053,29 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       const menu = document.createElement("div");
       menu.className = "message-menu";
       menu.hidden = true;
+
+      const replyButton = document.createElement("button");
+      replyButton.className = "message-action";
+      replyButton.type = "button";
+      replyButton.textContent = "Reply";
+      replyButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        pendingReply = message;
+        replyDraftAuthor.textContent = `Replying to ${message.from === currentUser ? "yourself" : message.from}`;
+        replyDraftText.textContent = replySummary(message.body, Boolean(message.attachment));
+        replyDraft.hidden = false;
+        closeMessageMenus();
+        input.focus();
+      });
+      menu.append(replyButton);
+
+      const actionsButton = document.createElement("button");
+      actionsButton.type = "button";
+      actionsButton.className = "message-actions-toggle";
+      actionsButton.textContent = "⋯";
+      actionsButton.setAttribute("aria-label", `Message actions for ${message.from}`);
+      actionsButton.setAttribute("aria-expanded", "false");
+      meta.append(actionsButton);
 
       const deleteForMeButton = document.createElement("button");
       deleteForMeButton.className = "message-action";
@@ -1993,6 +2119,11 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         const willOpen = menu.hidden;
         closeMessageMenus();
         menu.hidden = !willOpen;
+        actionsButton.setAttribute("aria-expanded", String(willOpen));
+        menu.classList.remove("above");
+        if (willOpen && menu.getBoundingClientRect().bottom > messagesEl.getBoundingClientRect().bottom) {
+          menu.classList.add("above");
+        }
       });
 
       item.append(meta, body, menu);
@@ -2411,7 +2542,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
       bubble.querySelector(".link-preview")?.remove();
       const isPreviewOnly = isOnlyPreviewUrl(item.dataset.messageBody || "", preview.url);
-      bubble.classList.toggle("preview-only", isPreviewOnly);
+      bubble.classList.toggle("preview-only", isPreviewOnly && !bubble.querySelector(".reply-quote"));
 
       if (isPreviewOnly) {
         bubble.querySelector(".message-text")?.remove();
@@ -2486,7 +2617,38 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       return value.replace(/[),.!?;:]+$/u, "");
     }
 
+    function replySummary(body, hasAttachment) {
+      return [hasAttachment ? "Photo" : "", body || ""].filter(Boolean).join(" · ");
+    }
+
+    function createReplyQuote(id, reply) {
+      const quote = document.createElement("div");
+      quote.className = "reply-quote";
+      quote.dataset.replyToId = id;
+      if (!reply) {
+        quote.textContent = "Message unavailable";
+        return quote;
+      }
+      const author = document.createElement("strong");
+      author.textContent = reply.from === currentUser ? "You" : reply.from;
+      const text = document.createElement("span");
+      text.textContent = replySummary(reply.body, reply.has_attachment);
+      quote.append(author, text);
+      return quote;
+    }
+
+    function clearPendingReply() {
+      pendingReply = null;
+      replyDraft.hidden = true;
+      replyDraftAuthor.textContent = "";
+      replyDraftText.textContent = "";
+    }
+
     function removeMessage(id) {
+      if (pendingReply?.id === id) clearPendingReply();
+      document.querySelectorAll(`[data-reply-to-id="${id}"]`).forEach((quote) => {
+        quote.replaceWith(createReplyQuote(id, null));
+      });
       const item = document.querySelector(`[data-message-id="${id}"]`);
 
       if (item) {
@@ -2549,6 +2711,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
     function closeMessageMenus() {
       document.querySelectorAll(".message-menu").forEach((menu) => {
         menu.hidden = true;
+        menu.closest(".message").querySelector(".message-actions-toggle").setAttribute("aria-expanded", "false");
       });
     }
 
