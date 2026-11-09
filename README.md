@@ -138,7 +138,9 @@ To change a password, generate a new hash, replace that user's `password_hash`, 
 Open a message's **⋯** menu beside its timestamp, then choose **Reply**.
 Reply appears only while the menu is open. For a link or video preview, use
 **⋯** to reply; clicking the link still opens it normally. The composer shows
-the original sender and a short preview.
+the original sender and a short preview, including a thumbnail when replying to
+a photo. Photo thumbnails also appear in sent replies; click one to view the
+full image.
 Write your response or attach a photo and send it as usual. Choose **Cancel**
 (or press Escape) to stop replying without discarding your draft.
 

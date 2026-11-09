@@ -310,8 +310,7 @@ impl MessageStore {
     ) -> sqlx::Result<Option<StoredReply>> {
         let row = sqlx::query_as::<_, ReplyRow>(
             r#"
-            SELECT id, sender, body, body_ciphertext, body_nonce,
-                attachment_id IS NOT NULL AS has_attachment
+            SELECT id, sender, body, body_ciphertext, body_nonce, attachment_id
             FROM messages
             WHERE id = ? AND deleted_at IS NULL
             AND NOT EXISTS (
@@ -344,7 +343,7 @@ impl MessageStore {
         Ok(Some(StoredReply {
             sender: row.sender,
             body,
-            has_attachment: row.has_attachment,
+            attachment_id: row.attachment_id,
         }))
     }
 
@@ -848,7 +847,7 @@ pub struct StoredMessage {
 pub struct StoredReply {
     pub sender: String,
     pub body: String,
-    pub has_attachment: bool,
+    pub attachment_id: Option<i64>,
 }
 
 #[derive(FromRow)]
@@ -858,7 +857,7 @@ struct ReplyRow {
     body: Option<String>,
     body_ciphertext: Option<Vec<u8>>,
     body_nonce: Option<Vec<u8>>,
-    has_attachment: bool,
+    attachment_id: Option<i64>,
 }
 
 #[derive(Clone, Debug, FromRow)]
@@ -1096,7 +1095,7 @@ mod tests {
             .unwrap();
         assert_eq!(quote.sender, "alice");
         assert_eq!(quote.body, "Original secret");
-        assert!(!quote.has_attachment);
+        assert!(quote.attachment_id.is_none());
         reopened.pool.close().await;
     }
 
@@ -1201,10 +1200,56 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert!(quote.has_attachment);
+        assert_eq!(quote.attachment_id, Some(photo.id));
         assert!(quote.body.is_empty());
         let older = store.messages_before("alice", reply.id + 1).await.unwrap();
         assert_eq!(older.last().unwrap().reply_to_id, Some(original.id));
+
+        store.pool.close().await;
+        let reopened = Fixture::open(&fixture.dir).await;
+        let quote = reopened
+            .reply_for_user("bob", original.id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(quote.attachment_id, Some(photo.id));
+        // Legacy photos without a generated thumbnail still serve the original.
+        let thumbnail = reopened
+            .attachment_thumbnail_for_user("bob", quote.attachment_id.unwrap())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(thumbnail.bytes, b"test photo");
+        reopened
+            .hide_message_for_user("bob", original.id)
+            .await
+            .unwrap();
+        assert!(
+            reopened
+                .reply_for_user("bob", original.id)
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            reopened
+                .reply_for_user("alice", original.id)
+                .await
+                .unwrap()
+                .is_some()
+        );
+        reopened
+            .delete_message_for_everyone("alice", original.id)
+            .await
+            .unwrap();
+        assert!(
+            reopened
+                .reply_for_user("alice", original.id)
+                .await
+                .unwrap()
+                .is_none()
+        );
+        reopened.pool.close().await;
     }
 
     #[tokio::test]

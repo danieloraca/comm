@@ -793,7 +793,9 @@ const CHAT_PAGE: &str = r##"<!doctype html>
 
     .reply-quote {
       display: grid;
-      gap: 3px;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 9px;
       min-width: 0;
       margin-bottom: 8px;
       padding: 6px 9px;
@@ -803,6 +805,21 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       font-size: 0.82rem;
       line-height: 1.35;
       white-space: normal;
+    }
+
+    .reply-quote-text {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+    }
+
+    .reply-photo {
+      display: block;
+      width: 48px;
+      height: 48px;
+      object-fit: cover;
+      border-radius: 4px;
+      cursor: pointer;
     }
 
     .reply-quote strong {
@@ -1480,8 +1497,10 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       </div>
       <div class="reply-draft" id="reply-draft" hidden aria-live="polite">
         <div class="reply-quote">
-          <strong id="reply-draft-author"></strong>
-          <span id="reply-draft-text"></span>
+          <div class="reply-quote-text">
+            <strong id="reply-draft-author"></strong>
+            <span id="reply-draft-text"></span>
+          </div>
         </div>
         <button class="clear-attachment-button" id="cancel-reply" type="button" aria-label="Cancel reply">Cancel</button>
       </div>
@@ -2059,6 +2078,9 @@ const CHAT_PAGE: &str = r##"<!doctype html>
         pendingReply = message;
         replyDraftAuthor.textContent = `Replying to ${message.from === currentUser ? "yourself" : message.from}`;
         replyDraftText.textContent = replySummary(message.body, Boolean(message.attachment));
+        const quote = replyDraft.querySelector(".reply-quote");
+        quote.querySelector(".reply-photo")?.remove();
+        if (message.attachment) quote.append(createReplyPhoto(message.attachment.id));
         replyDraft.hidden = false;
         closeMessageMenus();
         input.focus();
@@ -2635,8 +2657,27 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       author.textContent = reply.from === currentUser ? "You" : reply.from;
       const text = document.createElement("span");
       text.textContent = replySummary(reply.body, reply.has_attachment);
-      quote.append(author, text);
+      const content = document.createElement("div");
+      content.className = "reply-quote-text";
+      content.append(author, text);
+      quote.append(content);
+      if (reply.attachment_id) quote.append(createReplyPhoto(reply.attachment_id));
       return quote;
+    }
+
+    function createReplyPhoto(attachmentId) {
+      const image = document.createElement("img");
+      image.className = "reply-photo";
+      image.src = `/attachments/${attachmentId}/thumbnail`;
+      image.alt = "Replied photo";
+      image.loading = "lazy";
+      const fullSrc = `/attachments/${attachmentId}`;
+      image.addEventListener("error", () => { image.src = fullSrc; }, { once: true });
+      image.addEventListener("click", (event) => {
+        event.stopPropagation();
+        openPhotoViewer(fullSrc, image.alt);
+      });
+      return image;
     }
 
     function clearPendingReply() {
@@ -2644,6 +2685,7 @@ const CHAT_PAGE: &str = r##"<!doctype html>
       replyDraft.hidden = true;
       replyDraftAuthor.textContent = "";
       replyDraftText.textContent = "";
+      replyDraft.querySelector(".reply-photo")?.remove();
     }
 
     function removeMessage(id) {

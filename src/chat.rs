@@ -94,6 +94,7 @@ pub struct ChatReply {
     from: String,
     body: String,
     has_attachment: bool,
+    attachment_id: Option<i64>,
 }
 
 impl ChatMessage {
@@ -498,7 +499,8 @@ impl From<StoredReply> for ChatReply {
         Self {
             from: reply.sender,
             body: reply.body,
-            has_attachment: reply.has_attachment,
+            has_attachment: reply.attachment_id.is_some(),
+            attachment_id: reply.attachment_id,
         }
     }
 }
